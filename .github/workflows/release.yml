@@ -25,7 +25,7 @@ jobs:
             arch: x64
     runs-on: ${{ matrix.runner }}
     env:
-      DOTDOCK_SMOKE_SOFTWARE_GPU: ${{ matrix.runner == 'macos-15-intel' && '1' || '0' }}
+      DOTDOCK_SMOKE_ALLOW_NO_WEBGL: ${{ matrix.runner == 'macos-15-intel' && '1' || '0' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -122,7 +122,7 @@ jobs:
               exit 1
             fi
           else
-            gh release create "$RELEASE_TAG" --draft --verify-tag --title "DotDock $RELEASE_TAG" --notes $'SVG·도트·Tripo 3D 12지신을 선택할 수 있습니다. 3D는 드래그 회전과 사용자 GLB 가져오기를 지원하며, 화면 변화가 없을 때 렌더링을 멈춥니다.\n생일을 입력하면 96년생 쥐띠(24세)처럼 만 나이 × 0.8을 반올림한 기분 나이를 표시합니다. 공식 나이가 아닌 농담입니다.\n여러 AI 사용량을 동시에 표시하며 설정의 업데이트 확인 또는 시작 시 알림으로 새 버전을 받을 수 있습니다.\n\nmacOS: DMG를 열고 DotDock을 Applications로 복사하세요.\nWindows: DotDock-Setup 설치 EXE를 실행하세요.\n비서명 앱 보안 경고 해제 방법은 README를 확인하세요.\n\nmacOS Apple Silicon·Intel 및 Windows Server 2022 CI에서 소스와 설치된 앱의 기본 기능·12종 3D·저장 복원을 자동 검증했습니다. Intel 맥 CI의 3D는 SwiftShader 소프트웨어 렌더링으로 검사합니다. 실제 계정 OAuth, 개인 Windows 10/11 PC와 다양한 물리 GPU 성능은 검증하지 않았습니다.'
+            gh release create "$RELEASE_TAG" --draft --verify-tag --title "DotDock $RELEASE_TAG" --notes $'SVG·도트·Tripo 3D 12지신을 선택할 수 있습니다. 3D는 드래그 회전과 사용자 GLB 가져오기를 지원하며, 화면 변화가 없을 때 렌더링을 멈춥니다.\n생일을 입력하면 96년생 쥐띠(24세)처럼 만 나이 × 0.8을 반올림한 기분 나이를 표시합니다. 공식 나이가 아닌 농담입니다.\n여러 AI 사용량을 동시에 표시하며 설정의 업데이트 확인 또는 시작 시 알림으로 새 버전을 받을 수 있습니다.\n\nmacOS: DMG를 열고 DotDock을 Applications로 복사하세요.\nWindows: DotDock-Setup 설치 EXE를 실행하세요.\n비서명 앱 보안 경고 해제 방법은 README를 확인하세요.\n\nmacOS Apple Silicon·Intel 및 Windows Server 2022 CI에서 소스와 설치된 앱의 기본 기능·저장 복원을 자동 검증했습니다. Apple Silicon·Windows에서는 12종 3D를, WebGL을 제공하지 않는 Intel 맥 CI에서는 2D 복원을 검사합니다. 실제 Intel 맥의 3D 렌더링은 미검증입니다. 실제 계정 OAuth, 개인 Windows 10/11 PC와 다양한 물리 GPU 성능은 검증하지 않았습니다.'
           fi
           gh release upload "$RELEASE_TAG" "${installers[@]}" SHA256SUMS.txt --clobber
           gh release edit "$RELEASE_TAG" --draft=false --latest

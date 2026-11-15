@@ -22,11 +22,7 @@ async function launch() {
   delete env.ELECTRON_RUN_AS_NODE;
   application = await electron.launch({
     ...(process.env.DOTDOCK_EXECUTABLE ? { executablePath: process.env.DOTDOCK_EXECUTABLE } : {}),
-    args: [
-      ...(process.env.DOTDOCK_SMOKE_SOFTWARE_GPU === '1'
-        ? ['--use-gl=angle', '--use-angle=swiftshader'] : []),
-      ...(process.env.DOTDOCK_EXECUTABLE ? [] : [projectDir])
-    ],
+    args: process.env.DOTDOCK_EXECUTABLE ? [] : [projectDir],
     env,
     timeout: 60_000
   });
@@ -236,11 +232,18 @@ async function verifyRestart() {
   await application.close();
   application = null;
   await launch();
-  await expect(page.locator('.character-model-canvas')).toHaveAttribute('aria-busy', 'false', { timeout: 30_000 });
-  await expect.poll(() => page.locator('.character-model-canvas').getAttribute('data-render-count')).not.toBe('0');
+  report.restartGraphics = await verify3D.probeGraphics(page);
+  if (report.restartGraphics.available) {
+    await expect(page.locator('.character-model-canvas')).toHaveAttribute('aria-busy', 'false', { timeout: 30_000 });
+    await expect.poll(() => page.locator('.character-model-canvas').getAttribute('data-render-count')).not.toBe('0');
+  } else {
+    await verify3D.verifyFallback(page);
+  }
   assert.equal((await page.evaluate(() => window.dotdock.getState())).characterStyle, '3d');
   assert.deepEqual(rendererErrors, []);
-  report.checks.push('saved 3D style and bundled model render after a fresh app launch');
+  report.checks.push(report.restartGraphics.available
+    ? 'saved 3D style and bundled model render after a fresh app launch'
+    : 'saved 3D style restores with visible 2D fallback after a fresh app launch without WebGL');
 }
 
 async function main() {
