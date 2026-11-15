@@ -8,6 +8,7 @@ import type {
 } from '../types/dotdock';
 import { getZodiacById, getZodiacImage } from '../services/zodiac';
 import { WIDGET_REGISTRY, getWidgetById } from '../widgets/registry';
+import { formatCompanionLabel } from '../services/age';
 
 interface HudPopoverProps {
   state: DotDockState;
@@ -58,9 +59,7 @@ export function HudPopover({
               DotDock <span className="hud-hanja">({zodiac.hanja})</span>
             </div>
             <div className="hud-subtitle">
-              {state.birthYear
-                ? `${state.birthYear}년생 · ${zodiac.ttiLabel} 수호메이트`
-                : `${zodiac.ttiLabel} 기본 메이트`}
+              {formatCompanionLabel(state, zodiac.ttiLabel)} 수호메이트
             </div>
           </div>
         </div>

@@ -599,6 +599,17 @@ body,
   justify-content: center;
 }
 
+.model-error-badge {
+  position: absolute;
+  bottom: 0;
+  padding: 2px 4px;
+  border-radius: 4px;
+  background: #311c25;
+  color: #fda4af;
+  font-size: 9px;
+  white-space: nowrap;
+}
+
 .sprite-img {
   image-rendering: auto;
   -webkit-user-drag: none;
@@ -647,7 +658,7 @@ img.is-pixel {
 }
 
 .character-pill {
-  width: 136px;
+  width: 144px;
   padding: 5px 8px 6px;
   border-radius: 9px;
   background: rgba(20, 21, 36, 0.92);

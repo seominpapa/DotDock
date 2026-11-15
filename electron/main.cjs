@@ -6,6 +6,8 @@ const os = require('node:os');
 const oauth = require('./oauth.cjs');
 const { createUpdater } = require('./updates.cjs');
 const { getCollapsedSize } = require('./dock-layout.cjs');
+const { loadBirthIdentity, applyBirthIdentity } = require('./birth-identity.cjs');
+const { registerCharacterModelIpc } = require('./character-models.cjs');
 
 const EXPANDED_SIZE = { width: 390, height: 600 };
 const VALID_SYNC_MINUTES = [5, 10, 15, 20];
@@ -106,8 +108,10 @@ function createDefaultState() {
     dockMetricIds: ['codex:weekly'],
     showSystemWidget: true,
     birthYear: null,
+    birthDate: null,
     selectedZodiacId: 'dragon',
     characterStyle: 'vector',
+    customModelId: null,
     customImageDataUrl: null,
     scale: 1,
     alwaysOnTop: true,
@@ -170,7 +174,9 @@ function loadStateFromDisk() {
       loaded = {
         ...defaults,
         ...raw,
-        characterStyle: raw.characterStyle === 'vector' ? 'vector' : 'pixel',
+        ...loadBirthIdentity(raw),
+        characterStyle: ['vector', '3d'].includes(raw.characterStyle) ? raw.characterStyle : 'pixel',
+        customModelId: typeof raw.customModelId === 'string' ? raw.customModelId : null,
         onboardingCompleted:
           typeof raw.onboardingCompleted === 'boolean' ? raw.onboardingCompleted : false,
         enabledProviders: Array.isArray(raw.enabledProviders)
@@ -408,6 +414,12 @@ function createWindow() {
   mainWindow.webContents.once('did-finish-load', () => {
     sendCommand('state-updated', appState);
   });
+  for (const event of ['hide', 'minimize']) {
+    mainWindow.on(event, () => sendCommand('window-visibility', false));
+  }
+  for (const event of ['show', 'restore']) {
+    mainWindow.on(event, () => sendCommand('window-visibility', true));
+  }
 
   mainWindow.on('close', (event) => {
     if (!isQuitting) {
@@ -584,6 +596,9 @@ function getOAuthHooks() {
 }
 
 function registerIpc() {
+  registerCharacterModelIpc({ ipcMain, dialog, getWindow: () => mainWindow,
+    getUserData: () => app.getPath('userData'),
+    getBundledModelsDirectory: () => path.join(app.getAppPath(), 'dist', 'models') });
   ipcMain.handle('dotdock:get-update-info', () => updater.getInfo());
   ipcMain.handle('dotdock:check-for-updates', () => updater.check());
   ipcMain.handle('dotdock:install-update', () => updater.install());
@@ -593,9 +608,11 @@ function registerIpc() {
 
   ipcMain.handle('dotdock:save-state', (_event, patch) => {
     if (!patch || typeof patch !== 'object') return appState;
+    const birthIdentity = applyBirthIdentity(appState, patch);
     appState = {
       ...appState,
       ...patch,
+      ...birthIdentity,
       ...(patch.launchAtLogin !== undefined
         ? { launchAtLogin: Boolean(patch.launchAtLogin) }
         : {}),

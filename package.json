@@ -1,6 +1,6 @@
 {
   "name": "dotdock",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "repository": {
     "type": "git",
     "url": "https://github.com/seominpapa/DotDock.git"
@@ -24,7 +24,8 @@
   },
   "dependencies": {
     "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "react-dom": "^19.0.0",
+    "three": "^0.187.0"
   },
   "overrides": {
     "minimatch@>=7.0.0 <11.0.1": "^11.0.1"
@@ -34,6 +35,7 @@
     "@types/node": "^22.10.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
+    "@types/three": "^0.187.0",
     "@vitejs/plugin-react": "^4.3.4",
     "electron": "^45.3.2",
     "electron-builder": "^26.18.0",

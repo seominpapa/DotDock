@@ -1,0 +1,28 @@
+.character-model {
+  position: relative;
+  flex: none;
+  touch-action: none;
+  user-select: none;
+}
+
+.character-model-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  cursor: grab;
+  border-radius: 12px;
+  touch-action: none;
+}
+
+.character-model-canvas:active { cursor: grabbing; }
+.character-model-canvas:focus-visible { outline: 2px solid #a5b4fc; outline-offset: 2px; }
+
+.character-model-status {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: #cbd5e1;
+  font-size: 10px;
+  pointer-events: none;
+}

@@ -1,3 +1,5 @@
+import type { CharacterModelBridge } from './character-models';
+
 export type ZodiacId =
   | 'rat'
   | 'ox'
@@ -71,8 +73,10 @@ export interface DotDockState {
   dockMetricIds?: DockMetricId[];
   showSystemWidget: boolean;
   birthYear: number | null;
+  birthDate?: string | null;
   selectedZodiacId: ZodiacId;
-  characterStyle?: 'vector' | 'pixel';
+  characterStyle?: 'vector' | 'pixel' | '3d';
+  customModelId?: string | null;
   customImageDataUrl: string | null;
   scale: 1 | 1.25 | 1.5;
   alwaysOnTop: boolean;
@@ -128,7 +132,7 @@ export interface InstallUpdateResult {
 }
 
 export interface MainCommand {
-  type: 'toggle-hud' | 'open-settings' | 'open-oauth' | 'quota-updated' | 'state-updated';
+  type: 'toggle-hud' | 'open-settings' | 'open-oauth' | 'quota-updated' | 'state-updated' | 'window-visibility';
   payload?: unknown;
 }
 
@@ -157,7 +161,7 @@ export interface WidgetDefinition {
   render: (ctx: WidgetContext) => import('react').ReactNode;
 }
 
-export interface DotDockBridge {
+export interface DotDockBridge extends CharacterModelBridge {
   getUpdateInfo: () => Promise<AppUpdateInfo>;
   checkForUpdates: () => Promise<AppUpdateInfo>;
   installUpdate: () => Promise<InstallUpdateResult>;

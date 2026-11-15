@@ -4,6 +4,7 @@ const os = require('node:os');
 const path = require('node:path');
 const { _electron: electron, expect } = require('@playwright/test');
 const { version } = require('../package.json');
+const verify3D = require('./smoke-3d.cjs');
 
 const projectDir = path.resolve(__dirname, '..');
 const profileDir = fs.mkdtempSync(path.join(os.tmpdir(), 'dotdock-smoke-'));
@@ -67,6 +68,22 @@ async function verifyFirstRun() {
   await expect.poll(() => page.evaluate(() => window.dotdock.getState())).toMatchObject({
     birthYear: 1996, selectedZodiacId: 'rat'
   });
+  await expect(page.locator('.pill-label')).toHaveText('96년생 쥐띠');
+  await page.getByLabel('생년월일 (선택)', { exact: true }).fill('1996-01-01');
+  await expect.poll(() => page.evaluate(() => window.dotdock.getState())).toMatchObject({
+    birthYear: 1996, birthDate: '1996-01-01', selectedZodiacId: 'rat'
+  });
+  const displayAge = Math.round((new Date().getFullYear() - 1996) * 0.8);
+  await expect(page.locator('.pill-label')).toHaveText(`96년생 쥐띠(${displayAge}세)`);
+  for (const birthDate of ['1996-02-30', '2999-01-01']) {
+    const rejected = await page.evaluate(async (value) => {
+      try { await window.dotdock.saveState({ birthDate: value }); return false; }
+      catch { return true; }
+    }, birthDate);
+    assert.equal(rejected, true);
+  }
+  assert.equal((await page.evaluate(() => window.dotdock.getState())).birthDate, '1996-01-01');
+  report.checks.push('birthdate applies exact birthday age × 0.8; invalid/future dates rejected without losing saved identity');
   await page.getByTitle('토끼띠 (卯)', { exact: true }).click();
   await expect.poll(() => page.evaluate(() => window.dotdock.getState())).toMatchObject({
     selectedZodiacId: 'rabbit'
@@ -114,6 +131,22 @@ async function verifyFirstRun() {
   await expect.poll(() => page.evaluate(async () => (await window.dotdock.getState()).memo))
     .toBe('DotDock native smoke memo');
   await page.getByTitle('캐릭터 및 통합 설정 열기', { exact: true }).click();
+  await page.getByLabel('생년만 입력', { exact: true }).fill('2000');
+  await page.getByRole('button', { name: '적용', exact: true }).click();
+  await expect.poll(() => page.evaluate(() => window.dotdock.getState())).toMatchObject({
+    birthYear: 2000, birthDate: null
+  });
+  await expect(page.locator('.pill-label')).toHaveText('00년생 용띠');
+  await page.getByLabel('생년월일 (선택)', { exact: true }).fill('2004-01-01');
+  await page.getByRole('button', { name: '생일 적용', exact: true }).click();
+  await expect(page.locator('.pill-label')).toHaveText(`04년생 원숭이띠(${Math.round((new Date().getFullYear() - 2004) * 0.8)}세)`);
+  assert.equal(await page.locator('.pill-title-row').evaluate((row) => row.scrollWidth <= row.clientWidth), true,
+    'long zodiac age label fits inside the character pill');
+  await page.getByLabel('생년월일 (선택)', { exact: true }).fill('1996-01-01');
+  await page.getByRole('button', { name: '생일 적용', exact: true }).click();
+  await page.getByTitle('토끼띠 (卯)', { exact: true }).click();
+  await expect(page.locator('.pill-label')).toHaveText(`96년생 토끼띠(${displayAge}세)`);
+  report.checks.push('settings year changes clear mismatched birthday; date derives zodiac; manual zodiac and long age label work');
   await page.getByRole('button', { name: '도트', exact: true }).click();
   await expect(page.locator('.sprite-img')).toHaveClass(/is-pixel/);
   await page.getByRole('button', { name: '벡터', exact: true }).click();
@@ -123,6 +156,7 @@ async function verifyFirstRun() {
   await expect(page.locator('.sprite-img')).toHaveCSS('height', '96px');
   await page.screenshot({ path: path.join(outputDir, 'character-vector-1.5x.png') });
   report.checks.push('settings style toggle and 1.5x sprite rendering');
+  await verify3D({ application, page, profileDir, outputDir, report });
   await page.getByRole('button', { name: '🖥️ 시스템 · 창', exact: true }).click();
   await expect(page.getByRole('button', { name: /업데이트 확인/ })).toBeVisible();
   await expect(page.locator('.settings-body')).toContainText(version);
@@ -177,6 +211,8 @@ async function verifyRestart() {
   await expect(page.getByRole('dialog', { name: 'DotDock 초기 설정', exact: true })).toHaveCount(0);
   const state = await page.evaluate(() => window.dotdock.getState());
   assert.equal(state.onboardingCompleted, true);
+  assert.equal(state.birthYear, 1996);
+  assert.equal(state.birthDate, '1996-01-01');
   assert.equal(state.selectedZodiacId, 'rabbit');
   assert.equal(state.characterStyle, 'vector');
   assert.equal(state.scale, 1.5);
@@ -186,6 +222,15 @@ async function verifyRestart() {
   assert.deepEqual(state.windowPosition, report.savedPosition);
   assert.deepEqual(rendererErrors, []);
   report.checks.push('restart restores onboarding, character, memo, selected quotas, quota data and position');
+  await page.evaluate(() => window.dotdock.saveState({ characterStyle: '3d' }));
+  await application.close();
+  application = null;
+  await launch();
+  await expect(page.locator('.character-model-canvas')).toHaveAttribute('aria-busy', 'false', { timeout: 30_000 });
+  await expect.poll(() => page.locator('.character-model-canvas').getAttribute('data-render-count')).not.toBe('0');
+  assert.equal((await page.evaluate(() => window.dotdock.getState())).characterStyle, '3d');
+  assert.deepEqual(rendererErrors, []);
+  report.checks.push('saved 3D style and bundled model render after a fresh app launch');
 }
 
 async function main() {

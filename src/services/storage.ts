@@ -7,8 +7,13 @@ import type {
   SyncQuotaResult,
   SystemStats
 } from '../types/dotdock';
+import { parseBirthDate } from './age';
 
 const FALLBACK_STORAGE_KEY = 'dotdock-web-fallback-state';
+
+function isValidBirthYear(value: unknown): value is number {
+  return typeof value === 'number' && Number.isInteger(value) && value >= 1900 && value <= new Date().getFullYear();
+}
 
 export async function getUpdateInfo(): Promise<AppUpdateInfo> {
   if (window.dotdock) return window.dotdock.getUpdateInfo();
@@ -33,8 +38,10 @@ const FALLBACK_STATE: DotDockState = {
   dockMetricIds: ['codex:weekly'],
   showSystemWidget: true,
   birthYear: null,
+  birthDate: null,
   selectedZodiacId: 'dragon',
   characterStyle: 'vector',
+  customModelId: null,
   customImageDataUrl: null,
   scale: 1,
   alwaysOnTop: true,
@@ -79,7 +86,10 @@ export async function loadDotDockState(): Promise<DotDockState> {
       return {
         ...FALLBACK_STATE,
         ...parsed,
-        characterStyle: parsed.characterStyle === 'vector' ? 'vector' : 'pixel',
+        birthYear: isValidBirthYear(parsed.birthYear) ? parsed.birthYear : null,
+        birthDate: parseBirthDate(parsed.birthDate)?.year === parsed.birthYear ? parsed.birthDate : null,
+        characterStyle: parsed.characterStyle === '3d' ? '3d' : parsed.characterStyle === 'vector' ? 'vector' : 'pixel',
+        customModelId: typeof parsed.customModelId === 'string' ? parsed.customModelId : null,
         dockMetricIds: Array.isArray(parsed.dockMetricIds)
           ? parsed.dockMetricIds
           : [parsed.dockMetricId || FALLBACK_STATE.dockMetricId],
@@ -97,7 +107,17 @@ export async function saveDotDockState(patch: Partial<DotDockState>): Promise<Do
     return window.dotdock.saveState(patch);
   }
   const current = await loadDotDockState();
-  const next = { ...current, ...patch };
+  const birth = parseBirthDate(patch.birthDate);
+  if (patch.birthDate !== undefined && patch.birthDate !== null && !birth) {
+    throw new Error('오늘까지의 올바른 생년월일을 입력해 주세요.');
+  }
+  if (patch.birthYear !== undefined && patch.birthYear !== null && !isValidBirthYear(patch.birthYear)) {
+    throw new Error('1900년부터 올해까지의 생년을 입력해 주세요.');
+  }
+  const birthYear = birth?.year ?? (patch.birthYear === undefined ? current.birthYear : patch.birthYear);
+  const requestedDate = patch.birthDate === undefined ? current.birthDate : patch.birthDate;
+  const birthDate = parseBirthDate(requestedDate)?.year === birthYear ? requestedDate : null;
+  const next = { ...current, ...patch, birthYear, birthDate };
   try {
     localStorage.setItem(FALLBACK_STORAGE_KEY, JSON.stringify(next));
   } catch {

@@ -7,6 +7,7 @@ import type {
   ZodiacId
 } from '../types/dotdock';
 import { ZODIAC_LIST, getZodiacByBirthYear, getZodiacById, getZodiacImage } from '../services/zodiac';
+import { getLocalDateString, parseBirthDate, formatCompanionLabel } from '../services/age';
 
 const AUTO_SYNC_OPTIONS: AutoSyncMinutes[] = [5, 10, 15, 20];
 
@@ -38,28 +39,52 @@ export function OnboardingModal({
   const [yearInput, setYearInput] = useState<string>(
     state.birthYear ? String(state.birthYear) : ''
   );
+  const [birthDateInput, setBirthDateInput] = useState(state.birthDate || '');
   const [busyKey, setBusyKey] = useState<string | null>(null);
 
   const parsedYear = Number(yearInput);
-  const validYear = Number.isInteger(parsedYear) && parsedYear >= 1900 && parsedYear <= 2100;
+  const validYear = Number.isInteger(parsedYear) && parsedYear >= 1900 && parsedYear <= new Date().getFullYear();
+  const parsedBirthDate = parseBirthDate(birthDateInput);
   const activeZodiac = getZodiacById(state.selectedZodiacId);
   const previewSprite = state.customImageDataUrl || getZodiacImage(activeZodiac, state.characterStyle);
 
   const handleYearChange = (val: string) => {
     setYearInput(val);
     const num = Number(val);
-    if (Number.isInteger(num) && num >= 1900 && num <= 2100) {
+    if (Number.isInteger(num) && num >= 1900 && num <= new Date().getFullYear()) {
       const matched = getZodiacByBirthYear(num);
+      const retainedDate = parseBirthDate(state.birthDate)?.year === num ? state.birthDate : null;
+      setBirthDateInput(retainedDate || '');
       void updateState({
         birthYear: num,
+        birthDate: retainedDate,
         selectedZodiacId: matched.id,
-        customImageDataUrl: null
+        customImageDataUrl: null,
+        customModelId: null
       });
     }
   };
 
+  const handleBirthDateChange = (value: string) => {
+    setBirthDateInput(value);
+    if (!value) {
+      void updateState({ birthDate: null });
+      return;
+    }
+    const birth = parseBirthDate(value);
+    if (!birth) return;
+    setYearInput(String(birth.year));
+    void updateState({
+      birthDate: value,
+      birthYear: birth.year,
+      selectedZodiacId: getZodiacByBirthYear(birth.year).id,
+      customImageDataUrl: null,
+      customModelId: null
+    });
+  };
+
   const handleSelectZodiac = (id: ZodiacId) => {
-    void updateState({ selectedZodiacId: id, customImageDataUrl: null });
+    void updateState({ selectedZodiacId: id, customImageDataUrl: null, customModelId: null });
   };
 
   const handleUploadCustomImage = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -68,7 +93,7 @@ export function OnboardingModal({
     const reader = new FileReader();
     reader.onload = () => {
       if (typeof reader.result === 'string') {
-        void updateState({ customImageDataUrl: reader.result });
+        void updateState({ customImageDataUrl: reader.result, characterStyle: 'vector' });
       }
     };
     reader.readAsDataURL(file);
@@ -92,6 +117,7 @@ export function OnboardingModal({
   };
 
   const handleFinish = async () => {
+    if (birthDateInput && !parsedBirthDate) return;
     if (validYear && state.birthYear !== parsedYear) {
       const matched = getZodiacByBirthYear(parsedYear);
       await updateState({
@@ -113,7 +139,7 @@ export function OnboardingModal({
           <div>
             <div className="hud-title">DotDock 초기 설정</div>
             <div className="hud-subtitle">
-              생년으로 내 12지신 캐릭터를 고르고, 모니터링할 LLM을 연결하세요.
+              생년월일로 내 12지신 캐릭터를 고르고, 모니터링할 LLM을 연결하세요.
             </div>
           </div>
         </div>
@@ -126,13 +152,13 @@ export function OnboardingModal({
         {/* Step 1: Birth year & 12 zodiac */}
         <section className="provider-card">
           <div className="provider-header">
-            <strong className="provider-name">1. 🎂 생년 입력 &amp; 12지신 캐릭터 선택</strong>
+            <strong className="provider-name">1. 🎂 생년월일 &amp; 12지신 캐릭터 선택</strong>
           </div>
 
           <div className="settings-option-row">
             <span>캐릭터 스타일</span>
             <div className="toolbar-actions">
-              {(['vector', 'pixel'] as const).map((style) => (
+              {(['vector', 'pixel', '3d'] as const).map((style) => (
                 <button
                   key={style}
                   type="button"
@@ -140,7 +166,7 @@ export function OnboardingModal({
                   aria-pressed={(state.characterStyle || 'vector') === style}
                   onClick={() => void updateState({ characterStyle: style, customImageDataUrl: null })}
                 >
-                  {style === 'vector' ? '벡터' : '도트'}
+                  {style === 'vector' ? '벡터' : style === 'pixel' ? '도트' : '3D'}
                 </button>
               ))}
             </div>
@@ -154,16 +180,29 @@ export function OnboardingModal({
                 className={`onboarding-preview-img ${!state.customImageDataUrl && state.characterStyle === 'pixel' ? 'is-pixel' : ''}`}
               />
               <span className="onboarding-preview-label">
-                {validYear ? `${parsedYear} · ` : ''}
-                {activeZodiac.ttiLabel}
+                {formatCompanionLabel(state, activeZodiac.ttiLabel)}
               </span>
             </div>
 
             <div className="onboarding-year-col">
+              <label htmlFor="onboarding-birth-date">생년월일 (선택)</label>
               <input
+                id="onboarding-birth-date"
+                type="date"
+                min="1900-01-01"
+                max={getLocalDateString()}
+                value={birthDateInput}
+                onChange={(event) => handleBirthDateChange(event.target.value)}
+                className="year-input"
+              />
+              <div className="year-preview">생일 기준 만 나이 × 0.8을 반올림해 표시합니다.</div>
+              {birthDateInput && !parsedBirthDate && <div className="year-preview" role="alert">오늘까지의 올바른 생년월일을 입력해 주세요.</div>}
+              <label htmlFor="onboarding-birth-year">생년만 입력 (나이 미표시)</label>
+              <input
+                id="onboarding-birth-year"
                 type="number"
                 min={1900}
-                max={2100}
+                max={new Date().getFullYear()}
                 value={yearInput}
                 onChange={(e) => handleYearChange(e.target.value)}
                 placeholder="태어난 연도 (예: 1996)"
@@ -332,6 +371,7 @@ export function OnboardingModal({
         <button
           type="button"
           className="onboarding-finish-btn"
+          disabled={Boolean(birthDateInput && !parsedBirthDate)}
           onClick={() => void handleFinish()}
         >
           🚀 설정 완료하고 시작하기

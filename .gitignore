@@ -9,6 +9,7 @@ playwright-report/
 .env.*
 !.env.example
 .tripo/
+assets/3d-staging/
 dotdock-state.json
 dotdock-secrets.json
 *.log

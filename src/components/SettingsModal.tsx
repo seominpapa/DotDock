@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import { UpdateSettings } from './UpdateSettings';
+import { CharacterModelSettings } from './CharacterModelSettings';
+import { getLocalDateString, parseBirthDate } from '../services/age';
 import type {
   AuthActionResult,
   AutoSyncMinutes,
@@ -99,12 +101,14 @@ export function SettingsModal({
   const [yearInput, setYearInput] = useState<string>(
     state.birthYear ? String(state.birthYear) : ''
   );
+  const [birthDateInput, setBirthDateInput] = useState(state.birthDate || '');
   const [busyKey, setBusyKey] = useState<string | null>(null);
   const [tokenOpenFor, setTokenOpenFor] = useState<ProviderId | null>(null);
   const [tokenDraft, setTokenDraft] = useState('');
 
   const parsedYear = Number(yearInput);
-  const validYear = Number.isInteger(parsedYear) && parsedYear >= 1900 && parsedYear <= 2100;
+  const validYear = Number.isInteger(parsedYear) && parsedYear >= 1900 && parsedYear <= new Date().getFullYear();
+  const parsedBirthDate = parseBirthDate(birthDateInput);
   const previewZodiac = validYear
     ? getZodiacByBirthYear(parsedYear)
     : getZodiacById(state.selectedZodiacId);
@@ -114,15 +118,35 @@ export function SettingsModal({
   const handleApplyBirthYear = () => {
     if (!validYear) return;
     const matched = getZodiacByBirthYear(parsedYear);
+    const retainedDate = parseBirthDate(state.birthDate)?.year === parsedYear ? state.birthDate : null;
+    setBirthDateInput(retainedDate || '');
     void updateState({
       birthYear: parsedYear,
+      birthDate: retainedDate,
       selectedZodiacId: matched.id,
-      customImageDataUrl: null
+      customImageDataUrl: null,
+      customModelId: null
+    });
+  };
+
+  const handleApplyBirthDate = () => {
+    if (!birthDateInput) {
+      void updateState({ birthDate: null });
+      return;
+    }
+    if (!parsedBirthDate) return;
+    setYearInput(String(parsedBirthDate.year));
+    void updateState({
+      birthDate: birthDateInput,
+      birthYear: parsedBirthDate.year,
+      selectedZodiacId: getZodiacByBirthYear(parsedBirthDate.year).id,
+      customImageDataUrl: null,
+      customModelId: null
     });
   };
 
   const handleSelectZodiac = (id: ZodiacId) => {
-    void updateState({ selectedZodiacId: id, customImageDataUrl: null });
+    void updateState({ selectedZodiacId: id, customImageDataUrl: null, customModelId: null });
   };
 
   const handleUploadCustomImage = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -131,7 +155,7 @@ export function SettingsModal({
     const reader = new FileReader();
     reader.onload = () => {
       if (typeof reader.result === 'string') {
-        void updateState({ customImageDataUrl: reader.result });
+        void updateState({ customImageDataUrl: reader.result, characterStyle: 'vector' });
       }
     };
     reader.readAsDataURL(file);
@@ -240,13 +264,39 @@ export function SettingsModal({
           <>
             <section className="provider-card">
               <div className="provider-header">
-                <strong className="provider-name">1. 생년 입력 → 띠 자동 매칭</strong>
+                <strong className="provider-name">1. 생년월일 · 띠 자동 매칭</strong>
               </div>
+              <label htmlFor="settings-birth-date">생년월일 (선택)</label>
               <div className="birth-year-row">
                 <input
+                  id="settings-birth-date"
+                  type="date"
+                  min="1900-01-01"
+                  max={getLocalDateString()}
+                  value={birthDateInput}
+                  onChange={(event) => setBirthDateInput(event.target.value)}
+                  className="year-input"
+                />
+                <button
+                  type="button"
+                  className="mini-btn is-accent"
+                  disabled={Boolean(birthDateInput && !parsedBirthDate)}
+                  onClick={handleApplyBirthDate}
+                >
+                  생일 적용
+                </button>
+              </div>
+              <p className="year-preview">
+                생일 기준 만 나이 × 0.8을 반올림해 표시합니다. 생년만 입력하면 나이는 표시하지 않습니다.
+              </p>
+              {birthDateInput && !parsedBirthDate && <p className="year-preview" role="alert">오늘까지의 올바른 생년월일을 입력해 주세요.</p>}
+              <label htmlFor="settings-birth-year">생년만 입력</label>
+              <div className="birth-year-row">
+                <input
+                  id="settings-birth-year"
                   type="number"
                   min={1900}
-                  max={2100}
+                  max={new Date().getFullYear()}
                   value={yearInput}
                   onChange={(e) => setYearInput(e.target.value)}
                   placeholder="예: 1996"
@@ -271,7 +321,7 @@ export function SettingsModal({
                     입니다!
                   </span>
                 ) : (
-                  <span>1900~2100 사이 연도를 입력하거나 아래에서 직접 고르세요.</span>
+                  <span>1900년부터 올해 사이 연도를 입력하거나 아래에서 직접 고르세요.</span>
                 )}
               </div>
             </section>
@@ -283,7 +333,7 @@ export function SettingsModal({
               <div className="settings-option-row">
                 <span>캐릭터 스타일</span>
                 <div className="toolbar-actions">
-                  {(['vector', 'pixel'] as const).map((style) => (
+                  {(['vector', 'pixel', '3d'] as const).map((style) => (
                     <button
                       key={style}
                       type="button"
@@ -291,11 +341,20 @@ export function SettingsModal({
                       aria-pressed={(state.characterStyle || 'vector') === style}
                       onClick={() => void updateState({ characterStyle: style, customImageDataUrl: null })}
                     >
-                      {style === 'vector' ? '벡터' : '도트'}
+                      {style === 'vector' ? '벡터' : style === 'pixel' ? '도트' : '3D'}
                     </button>
                   ))}
                 </div>
               </div>
+              {state.characterStyle === '3d' && (
+                <div className="character-model-options">
+                  <p className="year-preview">캐릭터를 드래그하면 회전합니다. 이름 영역을 드래그하면 창이 이동합니다.</p>
+                  <CharacterModelSettings modelId={state.customModelId} onImported={async (id) => {
+                    await updateState({ customModelId: id, characterStyle: '3d', customImageDataUrl: null });
+                  }} />
+                  {state.customModelId && <button type="button" className="mini-btn" onClick={() => void updateState({ customModelId: null })}>기본 12지신 사용</button>}
+                </div>
+              )}
               <div className="zodiac-grid">
                 {ZODIAC_LIST.map((z) => {
                   const selected = state.selectedZodiacId === z.id && !state.customImageDataUrl;

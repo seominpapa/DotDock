@@ -1,7 +1,10 @@
-import { useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import type { DotDockState } from '../types/dotdock';
 import { getZodiacById, getZodiacImage } from '../services/zodiac';
 import { getAvailableDockMetrics, getSelectedDockMetrics } from '../services/quotaMetrics';
+import { formatCompanionLabel } from '../services/age';
+
+const CharacterModel = lazy(() => import('./CharacterModel'));
 
 interface CharacterSpriteProps {
   state: DotDockState;
@@ -25,6 +28,11 @@ export function CharacterSprite({
   const zodiac = getZodiacById(state.selectedZodiacId);
   const spriteSrc = state.customImageDataUrl || getZodiacImage(zodiac, state.characterStyle);
   const pixelClass = !state.customImageDataUrl && state.characterStyle === 'pixel' ? 'is-pixel' : '';
+  const modelId = state.customModelId || `zodiac:${zodiac.id}`;
+  const [modelError, setModelError] = useState<{ id: string; message: string } | null>(null);
+  useEffect(() => setModelError(null), [modelId, state.characterStyle]);
+  const handleModelError = useCallback((message: string) => setModelError({ id: modelId, message }), [modelId]);
+  const showModel = state.characterStyle === '3d' && modelError?.id !== modelId;
 
   const dragRef = useRef<{
     active: boolean;
@@ -104,9 +112,10 @@ export function CharacterSprite({
     }
   };
 
-  const pillLabel = state.birthYear
-    ? `${state.birthYear} ${zodiac.ttiLabel}`
-    : zodiac.ttiLabel;
+  const pillLabel = formatCompanionLabel(state, zodiac.ttiLabel);
+  const spriteImage = <img src={spriteSrc} alt={zodiac.ttiLabel}
+    className={`sprite-img ${pixelClass} ${dragging ? 'no-bounce' : ''}`}
+    style={{ width: `${spriteSize}px`, height: `${spriteSize}px` }} draggable={false} />;
 
   return (
     <div
@@ -114,7 +123,7 @@ export function CharacterSprite({
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
-      title="클릭: 현황판 열기/닫기 · 드래그: 위치 이동"
+      title={state.characterStyle === '3d' ? '캐릭터 드래그: 회전 · 이름 클릭: 현황판 · 이름 드래그: 위치 이동' : '클릭: 현황판 열기/닫기 · 드래그: 위치 이동'}
     >
       <div className="character-hover-tools">
         <button
@@ -147,16 +156,11 @@ export function CharacterSprite({
             !
           </span>
         )}
-        <img
-          src={spriteSrc}
-          alt={zodiac.ttiLabel}
-          className={`sprite-img ${pixelClass} ${dragging ? 'no-bounce' : ''}`}
-          style={{
-            width: `${spriteSize}px`,
-            height: `${spriteSize}px`
-          }}
-          draggable={false}
-        />
+        {showModel ? <Suspense fallback={spriteImage}>
+          <CharacterModel key={`${modelId}:${spriteSize}`} modelId={modelId} size={spriteSize} label={zodiac.ttiLabel} onError={handleModelError} />
+        </Suspense> : spriteImage}
+        {state.characterStyle === '3d' && modelError?.id === modelId &&
+          <span className="model-error-badge" role="alert" title={modelError.message}>3D 오류 · 2D 표시</span>}
       </div>
 
       <div className="character-pill">
