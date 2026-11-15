@@ -1,6 +1,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
+const { createBuiltinModelDownloader } = require('./model-download.cjs');
 
 const MAX_MODEL_BYTES = 10 * 1024 * 1024;
 const MAX_TRIANGLES = 20_000;
@@ -234,8 +235,8 @@ function readModelFile(filePath) {
   } finally { fs.closeSync(descriptor); }
 }
 
-function createCharacterModelStore(modelsDirectory, bundledDirectory) {
-  return {
+function createCharacterModelStore(modelsDirectory, bundledDirectory, { builtinDownloader } = {}) {
+  const store = {
     importFile(filePath) {
       const bytes = readModelFile(filePath);
       fs.mkdirSync(modelsDirectory, { recursive: true, mode: 0o700 });
@@ -254,13 +255,34 @@ function createCharacterModelStore(modelsDirectory, bundledDirectory) {
       const filePath = zodiac ? path.join(bundledDirectory, `${zodiac}.glb`) : path.join(modelsDirectory, `${modelId}.glb`);
       requireValid(fs.existsSync(filePath), '저장된 3D 모델이 없습니다. GLB 파일을 다시 가져와 주세요.');
       return { ok: true, modelId, base64: readModelFile(filePath).toString('base64') };
+    },
+    async readForDisplay(modelId) {
+      const zodiac = typeof modelId === 'string' && modelId.startsWith('zodiac:') ? modelId.slice(7) : null;
+      if (builtinDownloader && ZODIACS.has(zodiac)) {
+        try {
+          const bytes = await builtinDownloader.read(zodiac);
+          return { ok: true, modelId, base64: bytes.toString('base64') };
+        } catch { /* The bundled, validated model remains available offline. */ }
+      }
+      return store.read(modelId);
     }
   };
+  return store;
 }
 
-function registerCharacterModelIpc({ ipcMain, dialog, getWindow, getUserData, getBundledModelsDirectory }) {
+function registerCharacterModelIpc({ ipcMain, dialog, getWindow, getUserData, getBundledModelsDirectory, fetchRequest }) {
+  let modelStore;
   function store() {
-    return createCharacterModelStore(path.join(getUserData(), 'models'), getBundledModelsDirectory?.());
+    if (!modelStore) {
+      const userData = getUserData();
+      const bundled = getBundledModelsDirectory?.();
+      const builtinDownloader = bundled ? createBuiltinModelDownloader({
+        cacheDirectory: path.join(userData, 'model-cache'), manifestPath: path.join(bundled, 'manifest.json'),
+        validateModel: validateGlb, maxBytes: MAX_MODEL_BYTES, fetchRequest
+      }) : undefined;
+      modelStore = createCharacterModelStore(path.join(userData, 'models'), bundled, { builtinDownloader });
+    }
+    return modelStore;
   }
   function allowed(event) {
     const contents = getWindow()?.webContents;
@@ -277,9 +299,9 @@ function registerCharacterModelIpc({ ipcMain, dialog, getWindow, getUserData, ge
       return store().importFile(selected.filePaths[0]);
     } catch (error) { return failure(error); }
   });
-  ipcMain.handle('dotdock:get-character-model', (event, modelId) => {
+  ipcMain.handle('dotdock:get-character-model', async (event, modelId) => {
     if (!allowed(event)) return { ok: false, message: '허용되지 않은 3D 모델 요청입니다.' };
-    try { return store().read(modelId); }
+    try { return await store().readForDisplay(modelId); }
     catch (error) { return failure(error); }
   });
 }

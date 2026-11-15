@@ -2,6 +2,8 @@ import fs from 'node:fs';
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import zlib from 'node:zlib';
+import os from 'node:os';
+import { _electron as electron } from '@playwright/test';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -280,35 +282,55 @@ function renderZodiacSvg(spec) {
 </svg>\n`;
 }
 
-function renderOriginalPixelSvg(id, title) {
-  const png = fs.readFileSync(path.join(zodiacOutDir, `${id}.png`));
-  assert.equal(png.subarray(1, 4).toString(), 'PNG');
-  assert.equal(png.readUInt32BE(16), 256);
-  assert.equal(png.readUInt32BE(20), 256);
-  assert.deepEqual([...png.subarray(24, 29)], [8, 6, 0, 0, 0]);
-  const chunks = [];
-  for (let offset = 8; offset < png.length;) {
-    const length = png.readUInt32BE(offset);
-    if (png.toString('ascii', offset + 4, offset + 8) === 'IDAT') chunks.push(png.subarray(offset + 8, offset + 8 + length));
-    offset += length + 12;
+async function renderPixelDrawings() {
+  const temporary = fs.mkdtempSync(path.join(os.tmpdir(), 'dotdock-assets-'));
+  const main = path.join(temporary, 'main.cjs');
+  fs.writeFileSync(main, `const { app, BrowserWindow } = require('electron');
+app.setPath('userData', ${JSON.stringify(path.join(temporary, 'profile'))});
+app.disableHardwareAcceleration();
+app.whenReady().then(() => new BrowserWindow({ show: false }).loadURL('data:text/html,<html></html>'));`);
+  const env = { ...process.env };
+  delete env.ELECTRON_RUN_AS_NODE;
+  let application;
+  try {
+    application = await electron.launch({ args: [main], env });
+    const page = await application.firstWindow();
+    return await page.evaluate(async (drawings) => {
+      const result = {};
+      for (const [id, svg] of drawings) {
+        const image = new Image();
+        image.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+        await image.decode();
+        const canvas = document.createElement('canvas');
+        canvas.width = canvas.height = 64;
+        const context = canvas.getContext('2d');
+        context.drawImage(image, 0, 0, 64, 64);
+        result[id] = Array.from(context.getImageData(0, 0, 64, 64).data);
+      }
+      return result;
+    }, Object.entries(ZODIAC_VECTORS).map(([id, spec]) => [id, renderZodiacSvg(spec)]));
+  } finally {
+    if (application) await application.close();
+    fs.rmSync(temporary, { recursive: true, force: true });
   }
-  const raw = zlib.inflateSync(Buffer.concat(chunks));
-  // shortcut: the original generated PNGs use RGBA and filter 0; add PNG filters if replacing these source assets.
-  assert.equal(raw.length, 256 * (256 * 4 + 1));
-  for (let y = 0; y < 256; y++) assert.equal(raw[y * 1025], 0);
+}
+
+function renderPixelSvg(pixels, title) {
+  assert.equal(pixels.length, 64 * 64 * 4);
   const colors = new Map();
-  for (let y = 0; y < 16; y++) {
-    for (let x = 0; x < 16; x++) {
-      const pixel = raw.subarray((y * 16 + 8) * 1025 + 1 + (x * 16 + 8) * 4, (y * 16 + 8) * 1025 + 5 + (x * 16 + 8) * 4);
-      if (pixel[3] === 0) continue;
-      assert.equal(pixel[3], 255);
-      const color = `#${pixel.subarray(0, 3).toString('hex')}`;
+  for (let y = 0; y < 64; y++) {
+    for (let x = 0; x < 64; x++) {
+      const pixel = pixels.slice((y * 64 + x) * 4, (y * 64 + x) * 4 + 4);
+      if (pixel[3] < 128) continue;
+      const color = `#${pixel.slice(0, 3).map((value) =>
+        (Math.round(value / 17) * 17).toString(16).padStart(2, '0')).join('')}`;
       colors.set(color, `${colors.get(color) || ''}M${x} ${y}h1v1h-1Z`);
     }
   }
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 16 16" shape-rendering="crispEdges" role="img" aria-label="${title} 도트 수호메이트">\n${[...colors].map(([fill, d]) => `<path fill="${fill}" d="${d}"/>`).join('\n')}\n</svg>\n`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64" shape-rendering="crispEdges" role="img" aria-label="${title} 도트 수호메이트">\n${[...colors].map(([fill, d]) => `<path fill="${fill}" d="${d}"/>`).join('\n')}\n</svg>\n`;
 }
 
+const pixelDrawings = await renderPixelDrawings();
 for (const [id, spec] of Object.entries(ZODIAC_VECTORS)) {
   const svg = renderZodiacSvg(spec);
   assert.match(svg, /viewBox="0 0 256 256"/);
@@ -316,7 +338,7 @@ for (const [id, spec] of Object.entries(ZODIAC_VECTORS)) {
   const outFile = path.join(zodiacOutDir, `${id}.svg`);
   fs.writeFileSync(outFile, svg.replace(/[ \t]+$/gm, ''));
   console.log(`Generated ${path.relative(rootDir, outFile)} (${Buffer.byteLength(svg)} bytes)`);
-  const pixelSvg = renderOriginalPixelSvg(id, spec.title);
+  const pixelSvg = renderPixelSvg(pixelDrawings[id], spec.title);
   assert.doesNotMatch(pixelSvg, /<image|data:image/);
   fs.writeFileSync(path.join(zodiacOutDir, `${id}-pixel.svg`), pixelSvg);
 }

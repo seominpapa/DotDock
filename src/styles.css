@@ -617,11 +617,6 @@ body,
   animation: pixel-bob 2.2s steps(2, end) infinite;
 }
 
-img.is-pixel {
-  image-rendering: pixelated;
-  image-rendering: crisp-edges;
-}
-
 .character-dock:hover .sprite-img,
 .sprite-img.no-bounce {
   animation: none;

@@ -1,0 +1,71 @@
+{
+  "version": "0.1.5",
+  "tag": "v0.1.5",
+  "baseUrl": "https://raw.githubusercontent.com/seominpapa/DotDock/v0.1.5/public/models/",
+  "archive": {
+    "file": "DotDock-3D-Models-0.1.5.zip",
+    "url": "https://github.com/seominpapa/DotDock/releases/download/v0.1.5/DotDock-3D-Models-0.1.5.zip"
+  },
+  "models": {
+    "rat": {
+      "file": "rat.glb",
+      "bytes": 2221992,
+      "sha256": "96385e6f75e81aae584ad00387a8db9df19ec14687ea352b7b1b2c6dfc5fcdaa"
+    },
+    "ox": {
+      "file": "ox.glb",
+      "bytes": 2006704,
+      "sha256": "8031f89a83250845ba2fdde585a6f57713a36395d3f84c525fae04e9fe5f5ca9"
+    },
+    "tiger": {
+      "file": "tiger.glb",
+      "bytes": 2554596,
+      "sha256": "313f3e7f220fced47adc364c489da7532e9f1f224c231cb25142121eea6dc7b4"
+    },
+    "rabbit": {
+      "file": "rabbit.glb",
+      "bytes": 1957764,
+      "sha256": "8fb901b1ad9bc43eb5a8901fad928e1f11cdda80c34b54ad3814db6182039475"
+    },
+    "dragon": {
+      "file": "dragon.glb",
+      "bytes": 2496316,
+      "sha256": "5a8a846d9679da023dda587a27b4650b8437246f03ea303ed6241ddec8598a2e"
+    },
+    "snake": {
+      "file": "snake.glb",
+      "bytes": 2284876,
+      "sha256": "a1058524b09db5baff75361e14f79da70947988488900f9c2ef041f2e6977519"
+    },
+    "horse": {
+      "file": "horse.glb",
+      "bytes": 1947960,
+      "sha256": "3425c9c185e158a93a02457c61fa9d77f2e561bb7b19a1d1f667b4bbc3aa2c22"
+    },
+    "sheep": {
+      "file": "sheep.glb",
+      "bytes": 2248996,
+      "sha256": "0bcc0e0cc3fc2207746d10b2d0159ae0387d0e0db297d17e0485bd120e032adb"
+    },
+    "monkey": {
+      "file": "monkey.glb",
+      "bytes": 2253944,
+      "sha256": "dcf4fb2bb2b298bad949f9d26e553b5994cd9aa9c5fc56f3311f2d70b340f48d"
+    },
+    "rooster": {
+      "file": "rooster.glb",
+      "bytes": 1531032,
+      "sha256": "49191021dab57228fa84e5484b1ba9c9643b359258aeb19c8d925241ba5750fb"
+    },
+    "dog": {
+      "file": "dog.glb",
+      "bytes": 2166580,
+      "sha256": "b6f0b2c16b3ed5ad8ced5a713ae25a1b1e6ab3a1ef6ebfe1daf1330cd2614bbb"
+    },
+    "pig": {
+      "file": "pig.glb",
+      "bytes": 1938300,
+      "sha256": "f5cdb027fac61d561396fa8d88e5979dc3d86f74d59af1d34531e8365ce81d81"
+    }
+  }
+}

@@ -12,6 +12,7 @@ const quotaFile = path.join(profileDir, 'quota.json');
 const outputDir = path.resolve(process.env.DOTDOCK_SMOKE_OUTPUT || 'test-results/electron');
 const report = { version, platform: process.platform, arch: process.arch, checks: [] };
 const rendererErrors = [];
+const rendererNetworkRequests = [];
 report.rendererConsole = [];
 let application;
 let page;
@@ -26,7 +27,24 @@ async function launch() {
     env,
     timeout: 60_000
   });
+  await application.evaluate(() => {
+    const originalFetch = globalThis.fetch;
+    globalThis.__dotdockNetworkRequests = [];
+    globalThis.fetch = (...args) => {
+      const input = args[0];
+      const value = typeof input === 'string' ? input : input instanceof URL ? input.href : input?.url;
+      const url = new URL(value);
+      if (['http:', 'https:'].includes(url.protocol)) {
+        globalThis.__dotdockNetworkRequests.push(`${url.origin}${url.pathname}`);
+      }
+      return Reflect.apply(originalFetch, globalThis, args);
+    };
+  });
   page = await application.firstWindow();
+  page.on('request', (request) => {
+    const url = new URL(request.url());
+    if (['http:', 'https:'].includes(url.protocol)) rendererNetworkRequests.push(`${url.origin}${url.pathname}`);
+  });
   page.on('pageerror', (error) => rendererErrors.push(error.message));
   page.on('console', (message) => {
     if (['error', 'warning'].includes(message.type()) && report.rendererConsole.length < 50) {
@@ -68,6 +86,7 @@ function geminiCard() {
 }
 
 async function verifyFirstRun() {
+  const displayAge = Math.round((new Date().getFullYear() - 1996) * 0.8);
   await expect(page.getByRole('dialog', { name: 'DotDock 초기 설정', exact: true })).toBeVisible();
   await stubAccountActions();
   await page.getByPlaceholder('태어난 연도 (예: 1996)').fill('1996');
@@ -79,7 +98,6 @@ async function verifyFirstRun() {
   await expect.poll(() => page.evaluate(() => window.dotdock.getState())).toMatchObject({
     birthYear: 1996, birthDate: '1996-01-01', selectedZodiacId: 'rat'
   });
-  const displayAge = Math.round((new Date().getFullYear() - 1996) * 0.8);
   await expect(page.locator('.pill-label')).toHaveText(`96년생 쥐띠(${displayAge}세)`);
   for (const birthDate of ['1996-02-30', '2999-01-01']) {
     const rejected = await page.evaluate(async (value) => {
@@ -97,14 +115,16 @@ async function verifyFirstRun() {
   await page.getByRole('button', { name: '도트', exact: true }).click();
   await expect(page.locator('.sprite-img')).toHaveClass(/is-pixel/);
   await expect.poll(() => page.locator('.zodiac-thumb-sm').evaluateAll((images) =>
-    images.filter((image) => image.complete && image.naturalWidth > 0).length)).toBe(12);
+    images.filter((image) => image.complete && image.naturalWidth === 64 && image.naturalHeight === 64).length)).toBe(12);
+  await expect.poll(() => page.locator('.sprite-img').evaluate((image) =>
+    ({ width: image.naturalWidth, height: image.naturalHeight }))).toEqual({ width: 64, height: 64 });
   await page.screenshot({ path: path.join(outputDir, 'onboarding-pixel.png') });
   await page.getByRole('button', { name: '벡터', exact: true }).click();
   await expect(page.locator('.sprite-img')).not.toHaveClass(/is-pixel/);
   await expect.poll(() => page.locator('.zodiac-thumb-sm').evaluateAll((images) =>
     images.filter((image) => image.complete && image.naturalWidth > 0).length)).toBe(12);
   await page.screenshot({ path: path.join(outputDir, 'onboarding-vector.png') });
-  report.checks.push('all 12 pixel/vector sprites load and style selection updates character');
+  report.checks.push('all 12 DOT sprites load at natural 64×64; vector sprites load and style selection updates character');
   await checkGeminiAction(page.locator('.onboarding-llm-card').filter({ hasText: 'Antigravity · Gemini' }));
   await page.getByRole('button', { name: '🚀 설정 완료하고 시작하기', exact: true }).click();
   await expect(page.getByRole('dialog', { name: 'DotDock 정보 HUD', exact: true })).toBeVisible();
@@ -155,14 +175,30 @@ async function verifyFirstRun() {
   report.checks.push('settings year changes clear mismatched birthday; date derives zodiac; manual zodiac and long age label work');
   await page.getByRole('button', { name: '도트', exact: true }).click();
   await expect(page.locator('.sprite-img')).toHaveClass(/is-pixel/);
+  await page.getByRole('button', { name: '1.5x', exact: true }).click();
+  await expect(page.locator('.sprite-img')).toHaveCSS('width', '96px');
+  await expect(page.locator('.sprite-img')).toHaveCSS('height', '96px');
+  await expect.poll(() => page.locator('.sprite-img').evaluate((image) =>
+    ({ width: image.naturalWidth, height: image.naturalHeight }))).toEqual({ width: 64, height: 64 });
+  await expect.poll(() => page.locator('.zodiac-thumb').evaluateAll((images) =>
+    images.filter((image) => image.complete && image.naturalWidth === 64 && image.naturalHeight === 64).length)).toBe(12);
+  await page.screenshot({ path: path.join(outputDir, 'character-dot-1.5x.png') });
   await page.getByRole('button', { name: '벡터', exact: true }).click();
   await expect(page.locator('.sprite-img')).not.toHaveClass(/is-pixel/);
   await page.getByRole('button', { name: '1.5x', exact: true }).click();
   await expect(page.locator('.sprite-img')).toHaveCSS('width', '96px');
   await expect(page.locator('.sprite-img')).toHaveCSS('height', '96px');
   await page.screenshot({ path: path.join(outputDir, 'character-vector-1.5x.png') });
-  report.checks.push('settings style toggle and 1.5x sprite rendering');
+  report.checks.push('DOT natural 64×64 renders at 1.5x/96px; settings style toggle and vector 1.5x rendering');
+  report.requestsBefore3D = {
+    mainFetch: await application.evaluate(() => globalThis.__dotdockNetworkRequests),
+    renderer: [...rendererNetworkRequests]
+  };
+  assert.deepEqual(report.requestsBefore3D, { mainFetch: [], renderer: [] }, '2D setup makes no observed HTTP requests before selecting 3D');
+  assert.equal(fs.existsSync(path.join(profileDir, 'model-cache')), false, '2D setup does not create the 3D download cache');
+  report.checks.push('no observed HTTP fetches or model cache before selecting 3D; production downloader remains enabled');
   await verify3D({ application, page, profileDir, outputDir, report });
+  report.modelDownloadRequests = await application.evaluate(() => globalThis.__dotdockNetworkRequests);
   await page.getByRole('button', { name: '🖥️ 시스템 · 창', exact: true }).click();
   await expect(page.getByRole('button', { name: /업데이트 확인/ })).toBeVisible();
   await expect(page.locator('.settings-body')).toContainText(version);

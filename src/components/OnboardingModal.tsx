@@ -195,7 +195,7 @@ export function OnboardingModal({
                 onChange={(event) => handleBirthDateChange(event.target.value)}
                 className="year-input"
               />
-              <div className="year-preview">생일 기준 만 나이 × 0.8을 반올림해 표시합니다.</div>
+              <div className="year-preview">생일을 입력하면 만 나이 × 0.8을 반올림해 괄호에 표시합니다. 생일이 없으면 나이는 표시하지 않습니다.</div>
               {birthDateInput && !parsedBirthDate && <div className="year-preview" role="alert">오늘까지의 올바른 생년월일을 입력해 주세요.</div>}
               <label htmlFor="onboarding-birth-year">생년만 입력 (나이 미표시)</label>
               <input

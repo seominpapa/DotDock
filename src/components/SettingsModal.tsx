@@ -287,7 +287,7 @@ export function SettingsModal({
                 </button>
               </div>
               <p className="year-preview">
-                생일 기준 만 나이 × 0.8을 반올림해 표시합니다. 생년만 입력하면 나이는 표시하지 않습니다.
+                생일을 입력하면 만 나이 × 0.8을 반올림해 괄호에 표시합니다. 생일이 없으면 나이는 표시하지 않습니다.
               </p>
               {birthDateInput && !parsedBirthDate && <p className="year-preview" role="alert">오늘까지의 올바른 생년월일을 입력해 주세요.</p>}
               <label htmlFor="settings-birth-year">생년만 입력</label>
