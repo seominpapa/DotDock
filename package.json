@@ -1,0 +1,97 @@
+{
+  "name": "dotdock",
+  "version": "0.1.1",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/seominpapa/DotDock.git"
+  },
+  "homepage": "https://github.com/seominpapa/DotDock",
+  "description": "Cross-platform desktop zodiac pixel companion and extensible AI quota HUD",
+  "main": "electron/main.cjs",
+  "type": "module",
+  "scripts": {
+    "generate:assets": "node scripts/generate-zodiac-assets.mjs",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test tests/*.test.cjs",
+    "test:coverage": "node --test --experimental-test-coverage tests/*.test.cjs",
+    "test:electron": "node scripts/smoke-electron.cjs",
+    "build:web": "vite build",
+    "start": "npm run build:web && electron .",
+    "dev": "vite build && electron .",
+    "pack:mac": "npm run build:web && node scripts/package-mac-app.mjs",
+    "dist:mac": "npm run build:web && electron-builder --mac",
+    "dist:win": "npm run build:web && electron-builder --win --x64"
+  },
+  "dependencies": {
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "overrides": {
+    "minimatch@>=7.0.0 <11.0.1": "^11.0.1"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.65.1",
+    "@types/node": "^22.10.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@vitejs/plugin-react": "^4.3.4",
+    "electron": "^45.3.2",
+    "electron-builder": "^26.18.0",
+    "typescript": "^5.7.3",
+    "vite": "^6.0.11"
+  },
+  "build": {
+    "appId": "com.dotdock.app",
+    "productName": "DotDock",
+    "icon": "electron/app-icon.png",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "electron/**/*",
+      "package.json"
+    ],
+    "mac": {
+      "artifactName": "DotDock-${version}-${arch}.${ext}",
+      "target": [
+        "dir",
+        "dmg"
+      ],
+      "category": "public.app-category.developer-tools"
+    },
+    "win": {
+      "icon": "electron/app-icon.png",
+      "signAndEditExecutable": false,
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "nsis": {
+      "artifactName": "DotDock-Setup-${version}-${arch}.${ext}",
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "DotDock"
+    }
+  }
+}

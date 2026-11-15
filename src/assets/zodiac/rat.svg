@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256" role="img" aria-labelledby="title">
+  <title id="title">쥐 수호메이트</title>
+  <defs><linearGradient id="coat" x1=".25" y1="0" x2=".7" y2="1"><stop stop-color="#d8dcf9"/><stop offset="1" stop-color="#a3addb"/></linearGradient></defs>
+  <ellipse cx="128" cy="232" rx="65" ry="9" fill="#252334" opacity=".12"/>
+  <g stroke="#504454" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M166 203c46 24 69-8 49-22-12-8-27 1-20 12" fill="none" stroke="#b382a6" stroke-width="11"/>
+    <ellipse cx="128" cy="186" rx="45" ry="37" fill="url(#coat)"/>
+    <ellipse cx="128" cy="190" rx="27" ry="25" fill="#f1efff" stroke="none"/>
+    <ellipse cx="87" cy="182" rx="10" ry="18" transform="rotate(18 87 182)" fill="url(#coat)"/>
+    <ellipse cx="169" cy="182" rx="10" ry="18" transform="rotate(-18 169 182)" fill="url(#coat)"/>
+    <ellipse cx="105" cy="218" rx="19" ry="11" fill="url(#coat)"/>
+    <ellipse cx="151" cy="218" rx="19" ry="11" fill="url(#coat)"/>
+      <circle cx="76" cy="66" r="30" fill="url(#coat)"/><circle cx="180" cy="66" r="30" fill="url(#coat)"/>
+      <g fill="#f5bfd1" stroke="none"><circle cx="76" cy="66" r="19"/><circle cx="180" cy="66" r="19"/></g>
+      <path d="M65 116c0-40 27-62 63-62s63 22 63 62c0 39-25 61-63 61s-63-22-63-61Z" fill="url(#coat)"/>
+      <ellipse cx="128" cy="143" rx="32" ry="23" fill="#f1efff" stroke="none"/>
+  <g fill="#343047" stroke="none">
+    <ellipse cx="105" cy="120" rx="6" ry="8"/>
+    <ellipse cx="151" cy="120" rx="6" ry="8"/>
+  </g>
+  <g fill="#fff" stroke="none">
+    <circle cx="103" cy="117" r="2"/><circle cx="149" cy="117" r="2"/>
+  </g><g fill="#f7a6b6" stroke="none" opacity=".65"><ellipse cx="87" cy="139" rx="10" ry="6"/><ellipse cx="169" cy="139" rx="10" ry="6"/></g><path d="M123 136q5-4 10 0l-5 5Z" fill="#856070" stroke="none"/><path d="M119 149q9 10 18 0" fill="none" stroke-width="3.5"/><g fill="none" stroke="#797595" stroke-width="2.5"><path d="m87 146-18-3m18 11-17 4m99-12 18-3m-18 11 17 4"/></g>
+  </g>
+</svg>

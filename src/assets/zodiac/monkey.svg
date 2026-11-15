@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256" role="img" aria-labelledby="title">
+  <title id="title">원숭이 수호메이트</title>
+  <defs><linearGradient id="coat" x1=".25" y1="0" x2=".7" y2="1"><stop stop-color="#c99a78"/><stop offset="1" stop-color="#9c715f"/></linearGradient></defs>
+  <ellipse cx="128" cy="232" rx="65" ry="9" fill="#252334" opacity=".12"/>
+  <g stroke="#504454" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M166 207c49 16 67-22 40-29-16-4-24 15-8 19" fill="none" stroke="#9c715f" stroke-width="13"/>
+    <ellipse cx="128" cy="186" rx="45" ry="37" fill="url(#coat)"/>
+    <ellipse cx="128" cy="190" rx="27" ry="25" fill="#f6dfbc" stroke="none"/>
+    <ellipse cx="87" cy="182" rx="10" ry="18" transform="rotate(18 87 182)" fill="url(#coat)"/>
+    <ellipse cx="169" cy="182" rx="10" ry="18" transform="rotate(-18 169 182)" fill="url(#coat)"/>
+    <ellipse cx="105" cy="218" rx="19" ry="11" fill="url(#coat)"/>
+    <ellipse cx="151" cy="218" rx="19" ry="11" fill="url(#coat)"/>
+      <circle cx="65" cy="117" r="24" fill="url(#coat)"/><circle cx="191" cy="117" r="24" fill="url(#coat)"/>
+      <g fill="#edc5ad" stroke="none"><circle cx="65" cy="117" r="13"/><circle cx="191" cy="117" r="13"/></g>
+      <ellipse cx="128" cy="117" rx="64" ry="62" fill="url(#coat)"/>
+      <path d="M84 124c-10-38 25-53 44-29 19-24 54-9 44 29 15 30-6 48-44 48s-59-18-44-48Z" fill="#f6dfbc" stroke="none"/>
+      <path d="m112 61 10-15 7 12 12-9 3 17" fill="url(#coat)" stroke-width="3"/>
+  <g fill="#343047" stroke="none">
+    <ellipse cx="105" cy="120" rx="6" ry="8"/>
+    <ellipse cx="151" cy="120" rx="6" ry="8"/>
+  </g>
+  <g fill="#fff" stroke="none">
+    <circle cx="103" cy="117" r="2"/><circle cx="149" cy="117" r="2"/>
+  </g><g fill="#f7a6b6" stroke="none" opacity=".65"><ellipse cx="87" cy="139" rx="10" ry="6"/><ellipse cx="169" cy="139" rx="10" ry="6"/></g><path d="M123 136q5-4 10 0l-5 5Z" fill="#856070" stroke="none"/><path d="M114 149q14 16 28 0" fill="none" stroke-width="3.5"/>
+  </g>
+</svg>

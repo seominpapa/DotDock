@@ -1,0 +1,14 @@
+node_modules/
+dist/
+release/
+test-results/
+playwright-report/
+*.tsbuildinfo
+.DS_Store
+.env
+.env.*
+!.env.example
+.tripo/
+dotdock-state.json
+dotdock-secrets.json
+*.log

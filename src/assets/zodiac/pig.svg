@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256" role="img" aria-labelledby="title">
+  <title id="title">돼지 수호메이트</title>
+  <defs><linearGradient id="coat" x1=".25" y1="0" x2=".7" y2="1"><stop stop-color="#f8c9d6"/><stop offset="1" stop-color="#e8a5bd"/></linearGradient></defs>
+  <ellipse cx="128" cy="232" rx="65" ry="9" fill="#252334" opacity=".12"/>
+  <g stroke="#504454" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M169 206c28 12 48-12 29-18-13-4-18 12-6 14" fill="none" stroke="#d38fa8" stroke-width="8"/>
+    <ellipse cx="128" cy="186" rx="45" ry="37" fill="url(#coat)"/>
+    <ellipse cx="128" cy="190" rx="27" ry="25" fill="#ffe5e7" stroke="none"/>
+    <ellipse cx="87" cy="182" rx="10" ry="18" transform="rotate(18 87 182)" fill="url(#coat)"/>
+    <ellipse cx="169" cy="182" rx="10" ry="18" transform="rotate(-18 169 182)" fill="url(#coat)"/>
+    <ellipse cx="105" cy="218" rx="19" ry="11" fill="url(#coat)"/>
+    <ellipse cx="151" cy="218" rx="19" ry="11" fill="url(#coat)"/>
+      <path d="M77 89 67 48q-1-9 8-6l37 24m67 23 10-41q1-9-8-6l-37 24" fill="url(#coat)"/>
+      <path d="m79 54 8 25 14-12m76-13-8 25-14-12" fill="#dc97b3" stroke="none"/>
+      <ellipse cx="128" cy="121" rx="67" ry="59" fill="url(#coat)"/>
+      <ellipse cx="128" cy="145" rx="33" ry="23" fill="#eba6bd" stroke="#b77a99" stroke-width="3.5"/>
+  <g fill="#343047" stroke="none">
+    <ellipse cx="105" cy="120" rx="6" ry="8"/>
+    <ellipse cx="151" cy="120" rx="6" ry="8"/>
+  </g>
+  <g fill="#fff" stroke="none">
+    <circle cx="103" cy="117" r="2"/><circle cx="149" cy="117" r="2"/>
+  </g><g fill="#f7a6b6" stroke="none" opacity=".65"><ellipse cx="87" cy="139" rx="10" ry="6"/><ellipse cx="169" cy="139" rx="10" ry="6"/></g><g fill="#b77a99" stroke="none"><ellipse cx="117" cy="145" rx="4" ry="6"/><ellipse cx="139" cy="145" rx="4" ry="6"/></g>
+  </g>
+</svg>

@@ -1,0 +1,126 @@
+name: Build and verify desktop installers
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-15
+            platform: mac
+            arch: arm64
+          - runner: macos-15-intel
+            platform: mac
+            arch: x64
+          - runner: windows-2022
+            platform: win
+            arch: x64
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Check release version and native architecture
+        shell: bash
+        run: |
+          node -e 'const p=require("./package.json"); if(process.arch!==process.env.EXPECTED_ARCH) throw Error(`Expected ${process.env.EXPECTED_ARCH}, got ${process.arch}`); if(process.env.GITHUB_REF_TYPE==="tag" && process.env.GITHUB_REF_NAME!==`v${p.version}`) throw Error("Tag must match package version");'
+        env:
+          EXPECTED_ARCH: ${{ matrix.arch }}
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build:web
+      - name: Verify source app on native OS
+        run: node scripts/smoke-electron.cjs
+        env:
+          DOTDOCK_SMOKE_OUTPUT: test-results/source
+      - name: Package installers
+        run: npx electron-builder --${{ matrix.platform }} --${{ matrix.arch }} --publish never
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+      - name: Install DMG into temporary directory and verify app
+        if: matrix.platform == 'mac'
+        shell: bash
+        run: |
+          dmg=$(find release -maxdepth 1 -name '*.dmg' -print -quit)
+          mount="$RUNNER_TEMP/dotdock-dmg"
+          mkdir -p "$mount"
+          hdiutil attach "$dmg" -nobrowse -readonly -mountpoint "$mount"
+          ditto "$mount/DotDock.app" "$RUNNER_TEMP/DotDock.app"
+          hdiutil detach "$mount"
+          DOTDOCK_EXECUTABLE="$RUNNER_TEMP/DotDock.app/Contents/MacOS/DotDock" DOTDOCK_SMOKE_OUTPUT=test-results/installed node scripts/smoke-electron.cjs
+      - name: Install Windows EXE silently and verify installed app
+        if: matrix.platform == 'win'
+        shell: pwsh
+        run: |
+          $installer = Get-ChildItem release/DotDock-Setup-*.exe | Select-Object -First 1
+          if (-not $installer) { throw 'NSIS installer missing' }
+          $installDir = Join-Path $env:RUNNER_TEMP 'DotDockInstalled'
+          $process = Start-Process -FilePath $installer.FullName -ArgumentList '/S', "/D=$installDir" -Wait -PassThru
+          if ($process.ExitCode -ne 0) { throw "Installer failed: $($process.ExitCode)" }
+          $env:DOTDOCK_EXECUTABLE = Join-Path $installDir 'DotDock.exe'
+          $env:DOTDOCK_SMOKE_OUTPUT = 'test-results/installed'
+          node scripts/smoke-electron.cjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Upload verification reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: verification-${{ matrix.platform }}-${{ matrix.arch }}
+          path: test-results/
+          if-no-files-found: warn
+      - name: Upload verified installers
+        uses: actions/upload-artifact@v4
+        with:
+          name: installers-${{ matrix.platform }}-${{ matrix.arch }}
+          path: |
+            release/*.dmg
+            release/*.exe
+            release/*-win.zip
+          if-no-files-found: error
+
+  publish:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: installers-*
+          merge-multiple: true
+          path: installers
+      - name: Publish verified release with SHA-256 checksums
+        shell: bash
+        working-directory: installers
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          shopt -s nullglob
+          installers=( *.dmg *.exe *.zip )
+          test "${#installers[@]}" -gt 0
+          sha256sum -- "${installers[@]}" > SHA256SUMS.txt
+          if draft=$(gh release view "$RELEASE_TAG" --json isDraft --jq '.isDraft'); then
+            if [[ "$draft" != 'true' ]]; then
+              echo 'Refusing to overwrite an already published release.' >&2
+              exit 1
+            fi
+          else
+            gh release create "$RELEASE_TAG" --draft --verify-tag --title "DotDock $RELEASE_TAG" --notes $'macOS: DMG를 열고 DotDock을 Applications로 복사하세요.\nWindows: DotDock-Setup 설치 EXE를 실행하세요.\n\n설정에서 업데이트 확인을 누르거나 다음 앱 실행 시 새 버전 알림을 받을 수 있습니다.\n\nmacOS 및 Windows 네이티브 OS에서 초기 설정, 저장 복원, 시스템 정보, 설치된 앱 실행을 자동 검증했습니다. 실제 계정 OAuth와 물리 GPU 성능은 검증하지 않았습니다. 서명되지 않은 설치 파일은 OS 보안 안내가 표시될 수 있습니다.'
+          fi
+          gh release upload "$RELEASE_TAG" "${installers[@]}" SHA256SUMS.txt --clobber
+          gh release edit "$RELEASE_TAG" --draft=false --latest
