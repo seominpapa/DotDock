@@ -70,3 +70,10 @@ test('manifest checks reject stale versions, content changes, and missing or une
   fs.writeFileSync(path.join(root, 'public/models/cat.glb'), createTriangleGlb());
   assert.throws(() => run('--manifest-only'), /cat/);
 }));
+
+test('manifest checks accept Windows CRLF checkout without changing hashes or pinned metadata', () => fixture((root) => {
+  execFileSync(python, [script, '--root', root, '--manifest-only']);
+  const manifest = path.join(root, 'public/models/manifest.json');
+  fs.writeFileSync(manifest, fs.readFileSync(manifest, 'utf8').replace(/\r?\n/g, '\r\n'));
+  execFileSync(python, [script, '--root', root, '--check']);
+}));

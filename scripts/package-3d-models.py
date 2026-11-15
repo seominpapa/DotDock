@@ -112,7 +112,7 @@ def main():
     manifest, archive_name = manifest_bytes(version, files)
     manifest_path = args.root / 'public' / 'models' / 'manifest.json'
     if args.check:
-        if not manifest_path.is_file() or manifest_path.read_bytes() != manifest:
+        if not manifest_path.is_file() or manifest_path.read_text(encoding='utf-8') != manifest.decode('utf-8'):
             raise ValueError('Model manifest is stale; regenerate with --manifest-only')
         print(f'Verified model manifest for v{version} (12 GLBs)')
         return
