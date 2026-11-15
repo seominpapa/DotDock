@@ -6,11 +6,11 @@
 
 [최신 릴리스와 설치 파일](https://github.com/seominpapa/DotDock/releases/latest)
 
-| 컴퓨터 | 0.1.7 설치 파일 |
+| 컴퓨터 | 0.1.8 설치 파일 |
 | --- | --- |
-| Mac Apple Silicon (M 시리즈) | [DMG 다운로드](https://github.com/seominpapa/DotDock/releases/download/v0.1.7/DotDock-0.1.7-arm64.dmg) |
-| Mac Intel | [DMG 다운로드](https://github.com/seominpapa/DotDock/releases/download/v0.1.7/DotDock-0.1.7-x64.dmg) |
-| Windows 64비트 | [설치 EXE 다운로드](https://github.com/seominpapa/DotDock/releases/download/v0.1.7/DotDock-Setup-0.1.7-x64.exe) |
+| Mac Apple Silicon (M 시리즈) | [DMG 다운로드](https://github.com/seominpapa/DotDock/releases/download/v0.1.8/DotDock-0.1.8-arm64.dmg) |
+| Mac Intel | [DMG 다운로드](https://github.com/seominpapa/DotDock/releases/download/v0.1.8/DotDock-0.1.8-x64.dmg) |
+| Windows 64비트 | [설치 EXE 다운로드](https://github.com/seominpapa/DotDock/releases/download/v0.1.8/DotDock-Setup-0.1.8-x64.exe) |
 
 Mac은 DMG를 열어 DotDock을 응용 프로그램 폴더로 복사한 뒤 실행합니다. Windows는 Setup EXE를 실행하고 설치 안내를 따릅니다. 설치 파일은 개발자 인증서로 서명·공증하지 않았으므로 운영체제의 보안 경고가 표시될 수 있습니다. Windows ARM 네이티브 설치 파일은 제공하지 않습니다.
 
@@ -20,13 +20,13 @@ Mac은 DMG를 열어 DotDock을 응용 프로그램 폴더로 복사한 뒤 실�
 
 **Windows 10 / 11**
 
-1. `DotDock-Setup-0.1.7-x64.exe`를 다운로드해 실행합니다.
+1. `DotDock-Setup-0.1.8-x64.exe`를 다운로드해 실행합니다.
 2. **Windows의 PC 보호** 경고가 나타나면 **추가 정보 → 실행**을 누릅니다.
 3. 설치 마법사를 완료하면 바탕화면과 시작 메뉴에 바로가기가 생성됩니다.
 
 **macOS**
 
-1. 컴퓨터에 맞는 `DotDock-0.1.7-arm64.dmg` 또는 `DotDock-0.1.7-x64.dmg`를 열고 `DotDock.app`을 **Applications(응용 프로그램)** 폴더로 복사합니다.
+1. 컴퓨터에 맞는 `DotDock-0.1.8-arm64.dmg` 또는 `DotDock-0.1.8-x64.dmg`를 열고 `DotDock.app`을 **Applications(응용 프로그램)** 폴더로 복사합니다.
 2. 실행이 차단되면 **시스템 설정 → 개인정보 보호 및 보안 → 확인 없이 열기**를 선택합니다. 앱을 한 번 실행해 차단 안내를 확인한 뒤 이용하세요.
 3. 계속 차단되는 경우 터미널에서 아래 명령어로 DotDock의 다운로드 격리 속성만 해제한 뒤 다시 실행합니다.
 
@@ -62,6 +62,7 @@ GitHub의 최신 정식 릴리스를 조회하고 현재 OS·CPU에 맞는 설�
 
 - **Codex·Claude:** 웹 로그인 또는 기존 로컬 CLI 인증을 감지하여 사용량 조회를 시도합니다. 공급자 계정·요금제·API 응답에 따라 지원되는 항목만 표시합니다.
 - **Antigravity/Gemini:** Antigravity에서 Google 계정으로 로그인한 뒤 DotDock의 **로컬 인증 감지**를 누릅니다. Gemini 모델과 Claude/GPT 모델 풀을 구분하며 각 풀에서 잔여율이 가장 낮은 모델을 표시합니다. 일반 Gemini 앱의 5시간/주간 한도를 뜻하지 않습니다.
+- Windows에서도 별도 `sqlite3` 설치 없이 앱에 포함된 SQLite로 Antigravity의 현재 인증 DB와 WAL을 읽습니다. 원본 DB는 읽기 전용으로 열며 삭제된 토큰은 사용하지 않습니다. 연결되지 않으면 Antigravity 앱에서 로그인을 확인한 뒤 **로컬 인증 감지**를 다시 누르세요.
 - 공급자 API·인증 형식이 바뀌면 연동이 중단될 수 있습니다. 실제 개인 계정의 OAuth 성공 여부는 자동화 테스트에서 검증하지 않습니다.
 - 자체 Google OAuth를 개발하는 경우 `DOTDOCK_GOOGLE_CLIENT_ID`, `DOTDOCK_GOOGLE_CLIENT_SECRET` 환경변수를 설정할 수 있습니다. 공개 배포본의 기본 Google 연결 UI는 로컬 인증 감지를 사용합니다. 로컬 인증에 갱신용 클라이언트 정보가 없으면 Antigravity에서 재인증해야 할 수 있습니다.
 
@@ -73,7 +74,7 @@ GitHub의 최신 정식 릴리스를 조회하고 현재 OS·CPU에 맞는 설�
 
 **3D를 선택하면 해당 캐릭터의 모델을 GitHub에서 자동 다운로드**합니다. 파일 크기와 SHA-256을 확인해 로컬에 캐시하며, 다시 선택하면 캐시를 사용합니다. 인터넷에 연결되지 않거나 다운로드에 실패하면 앱에 포함된 기본 모델로 표시합니다. 별도 ZIP을 설치할 필요는 없습니다.
 
-12종을 파일로 받고 싶다면 [3D 모델 ZIP 다운로드 — 0.1.7](https://github.com/seominpapa/DotDock/releases/download/v0.1.7/DotDock-3D-Models-0.1.7.zip)를 이용하세요. [각 GLB와 검증용 매니페스트](https://github.com/seominpapa/DotDock/tree/v0.1.7/public/models)도 공개되어 있습니다. ZIP에는 `models/` 아래 12개 GLB, 사용 안내, 파일별 SHA-256 목록과 버전이 고정된 매니페스트가 들어 있습니다. 압축을 푼 GLB는 **GLB 가져오기**로 직접 선택할 수 있습니다.
+12종을 파일로 받고 싶다면 [3D 모델 ZIP 다운로드 — 0.1.8](https://github.com/seominpapa/DotDock/releases/download/v0.1.8/DotDock-3D-Models-0.1.8.zip)를 이용하세요. [각 GLB와 검증용 매니페스트](https://github.com/seominpapa/DotDock/tree/v0.1.8/public/models)도 공개되어 있습니다. ZIP에는 `models/` 아래 12개 GLB, 사용 안내, 파일별 SHA-256 목록과 버전이 고정된 매니페스트가 들어 있습니다. 압축을 푼 GLB는 **GLB 가져오기**로 직접 선택할 수 있습니다.
 
 3D를 선택한 경우에만 렌더러와 선택한 모델 하나를 불러옵니다. 회전·크기 변경 등 화면 변화가 있을 때만 다시 그리고, 숨김·최소화 시 렌더링을 멈추며 2D로 전환하면 GPU 자원을 해제합니다. 3D를 선택하면 추가 GPU 메모리를 사용하며 장비별 사용량은 다를 수 있습니다.
 

@@ -27,7 +27,14 @@ async function launch() {
     env,
     timeout: 60_000
   });
-  await application.evaluate(() => {
+  report.sqliteRuntime = await application.evaluate(() => {
+    const { DatabaseSync } = process.getBuiltinModule('node:sqlite');
+    const database = new DatabaseSync(':memory:');
+    try {
+      if (database.prepare('SELECT 1 AS ok').get().ok !== 1) throw new Error('Bundled SQLite unavailable');
+    } finally {
+      database.close();
+    }
     const originalFetch = globalThis.fetch;
     globalThis.__dotdockNetworkRequests = [];
     globalThis.fetch = (...args) => {
@@ -39,6 +46,7 @@ async function launch() {
       }
       return Reflect.apply(originalFetch, globalThis, args);
     };
+    return { electron: process.versions.electron, node: process.versions.node, sqlite: process.versions.sqlite };
   });
   page = await application.firstWindow();
   page.on('request', (request) => {

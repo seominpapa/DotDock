@@ -981,38 +981,20 @@ function findOAuthFieldsDeep(node, depth = 0, out = {}) {
 }
 
 function queryAntigravityStateDb(dbPath, sql) {
-  const sqliteCmd = process.platform === 'darwin' ? '/usr/bin/sqlite3' : 'sqlite3';
+  let database;
   try {
-    const out = execFileSync(sqliteCmd, [dbPath, sql], {
-      timeout: 2000,
-      encoding: 'utf8',
-      windowsHide: true,
-      stdio: ['ignore', 'pipe', 'ignore']
-    });
-    if (out && out.trim()) return out;
-  } catch {
-    // sqlite3 CLI unavailable on Windows or DB locked — fall back to raw scan
-  }
-  try {
-    const stat = fs.statSync(dbPath);
-    if (stat.size > 64 * 1024 * 1024) return '';
-    const raw = fs.readFileSync(dbPath, 'latin1');
-    const chunks = raw.match(/[\x20-\x7E]{12,}/g);
-    if (!chunks || chunks.length === 0) return '';
-    return chunks
-      .filter(
-        (chunk) =>
-          chunk.includes('ya29.') ||
-          chunk.includes('1//') ||
-          chunk.includes('access_token') ||
-          chunk.includes('refresh_token') ||
-          chunk.includes('accessToken') ||
-          chunk.includes('refreshToken') ||
-          chunk.includes('@')
-      )
+    if (fs.statSync(dbPath).size > 64 * 1024 * 1024) return '';
+    const { DatabaseSync } = require('node:sqlite');
+    // SQLite reads committed WAL changes; raw bytes can contain stale or deleted tokens.
+    database = new DatabaseSync(dbPath, { readOnly: true, timeout: 250 });
+    return database.prepare(sql).all()
+      .map(({ value }) => typeof value === 'string' ? value : value instanceof Uint8Array ? Buffer.from(value).toString('utf8') : '')
+      .filter(Boolean)
       .join('\n');
   } catch {
     return '';
+  } finally {
+    database?.close();
   }
 }
 
@@ -1512,7 +1494,7 @@ function clearProviderFakeFallback(appState, provider, statusMessage) {
       used: 0,
       limit: 100,
       unit: '%',
-      resetLabel: '웹 로그인 필요',
+      resetLabel: '로컬 인증 감지 필요',
       label: 'Gemini 모델',
       hidden: false
     };
@@ -1520,7 +1502,7 @@ function clearProviderFakeFallback(appState, provider, statusMessage) {
       used: 0,
       limit: 100,
       unit: '%',
-      resetLabel: '웹 로그인 필요',
+      resetLabel: '로컬 인증 감지 필요',
       label: 'Claude · GPT 모델',
       hidden: false
     };
@@ -1569,7 +1551,7 @@ async function detectLocalAuth(provider, appState, hooks) {
         clearProviderFakeFallback(
           appState,
           'gemini',
-          'Antigravity OAuth 미연결 — [🌐 웹 로그인]으로 Google 계정을 연결해 주세요'
+          'Antigravity 인증을 확인하지 못했습니다. Antigravity 앱에서 로그인한 뒤 [로컬 인증 감지]를 눌러 주세요.'
         );
       }
     }
@@ -1585,7 +1567,9 @@ async function detectLocalAuth(provider, appState, hooks) {
   const message =
     detected.length > 0
       ? `실시간 사용량 연동 완료: ${detected.join(', ')}`
-      : '연동된 OAuth 인증이 없습니다. 각 항목의 [🌐 웹 로그인]을 눌러 연결해 주세요.';
+      : provider === 'gemini'
+        ? appState.auth.gemini.statusMessage
+        : '인증을 확인하지 못했습니다. Codex·Claude는 [🌐 웹 로그인], Antigravity는 앱에서 로그인한 뒤 [로컬 인증 감지]를 눌러 주세요.';
   return { ok: detected.length > 0, message, state: appState };
 }
 
