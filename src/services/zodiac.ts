@@ -65,3 +65,7 @@ export function getZodiacByBirthYear(year: number): ZodiacMeta {
 export function getZodiacImage(zodiac: ZodiacMeta, style: DotDockState['characterStyle']): string {
   return style === 'pixel' ? zodiac.pixelSvg : zodiac.defaultPng;
 }
+
+export function getZodiacPreview(zodiac: ZodiacMeta, style: DotDockState['characterStyle']): string {
+  return style === '3d' ? `./model-previews/${zodiac.id}.png` : getZodiacImage(zodiac, style);
+}

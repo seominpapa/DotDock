@@ -11,7 +11,7 @@ import type {
   SyncQuotaResult,
   ZodiacId
 } from '../types/dotdock';
-import { ZODIAC_LIST, getZodiacByBirthYear, getZodiacById, getZodiacImage } from '../services/zodiac';
+import { ZODIAC_LIST, getZodiacByBirthYear, getZodiacById, getZodiacPreview } from '../services/zodiac';
 import { getAvailableDockMetrics, getSelectedDockMetricIds, toggleDockMetric } from '../services/quotaMetrics';
 
 const AUTO_SYNC_OPTIONS: AutoSyncMinutes[] = [5, 10, 15, 20];
@@ -367,7 +367,7 @@ export function SettingsModal({
                       title={`${z.ttiLabel} (${z.hanja})`}
                     >
                       <img
-                        src={getZodiacImage(z, state.characterStyle)}
+                        src={getZodiacPreview(z, state.characterStyle)}
                         alt={z.ttiLabel}
                         className={`zodiac-thumb ${state.characterStyle === 'pixel' ? 'is-pixel' : ''}`}
                       />

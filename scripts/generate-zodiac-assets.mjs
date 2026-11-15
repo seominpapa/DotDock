@@ -2,8 +2,6 @@ import fs from 'node:fs';
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import zlib from 'node:zlib';
-import os from 'node:os';
-import { _electron as electron } from '@playwright/test';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -282,55 +280,168 @@ function renderZodiacSvg(spec) {
 </svg>\n`;
 }
 
-async function renderPixelDrawings() {
-  const temporary = fs.mkdtempSync(path.join(os.tmpdir(), 'dotdock-assets-'));
-  const main = path.join(temporary, 'main.cjs');
-  fs.writeFileSync(main, `const { app, BrowserWindow } = require('electron');
-app.setPath('userData', ${JSON.stringify(path.join(temporary, 'profile'))});
-app.disableHardwareAcceleration();
-app.whenReady().then(() => new BrowserWindow({ show: false }).loadURL('data:text/html,<html></html>'));`);
-  const env = { ...process.env };
-  delete env.ELECTRON_RUN_AS_NODE;
-  let application;
-  try {
-    application = await electron.launch({ args: [main], env });
-    const page = await application.firstWindow();
-    return await page.evaluate(async (drawings) => {
-      const result = {};
-      for (const [id, svg] of drawings) {
-        const image = new Image();
-        image.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
-        await image.decode();
-        const canvas = document.createElement('canvas');
-        canvas.width = canvas.height = 64;
-        const context = canvas.getContext('2d');
-        context.drawImage(image, 0, 0, 64, 64);
-        result[id] = Array.from(context.getImageData(0, 0, 64, 64).data);
-      }
-      return result;
-    }, Object.entries(ZODIAC_VECTORS).map(([id, spec]) => [id, renderZodiacSvg(spec)]));
-  } finally {
-    if (application) await application.close();
-    fs.rmSync(temporary, { recursive: true, force: true });
-  }
-}
+// Drawn on a separate 32-cell grid: each cell is 3px at the maximum 96px display size.
+const PIXEL_HEAD = [
+  '.....##########.....', '...##############...', '..################..',
+  '.##################.', '####################', '####################',
+  '####################', '####################', '####################',
+  '####################', '####################', '.##################.',
+  '..################..', '...##############...', '.....##########.....'
+];
+const PIXEL_BODY = ['..########..', '.##########.', '############', '############',
+  '############', '############', '.##########.', '..########..'];
+const PIXEL_EAR = ['..###..', '.#####.', '#######', '#######', '#######', '.#####.', '..###..'];
+const PIXEL_PALETTES = {
+  rat: ['#a4a1dc', '#706eaa', '#ede8ff'],
+  ox: ['#ce9965', '#956441', '#ffe1a3'],
+  tiger: ['#ffb63e', '#d5792e', '#fff0bd'],
+  rabbit: ['#fff3ed', '#d4b8d7', '#fffafa'],
+  dragon: ['#43c28e', '#25876e', '#e8e69b'],
+  snake: ['#9bcf54', '#5c9e42', '#f5e6a4'],
+  horse: ['#d69358', '#8f5746', '#ffe4b5'],
+  sheep: ['#fff2d4', '#c8b1a7', '#d89f72'],
+  monkey: ['#b77c51', '#795143', '#ffda9e'],
+  rooster: ['#ffedbc', '#c5ad81', '#fff9de'],
+  dog: ['#eeb864', '#a66c42', '#fff0c9'],
+  pig: ['#ef9eb6', '#c66b96', '#ffd4d7']
+};
 
-function renderPixelSvg(pixels, title) {
-  assert.equal(pixels.length, 64 * 64 * 4);
-  const colors = new Map();
-  for (let y = 0; y < 64; y++) {
-    for (let x = 0; x < 64; x++) {
-      const pixel = pixels.slice((y * 64 + x) * 4, (y * 64 + x) * 4 + 4);
-      if (pixel[3] < 128) continue;
-      const color = `#${pixel.slice(0, 3).map((value) =>
-        (Math.round(value / 17) * 17).toString(16).padStart(2, '0')).join('')}`;
-      colors.set(color, `${colors.get(color) || ''}M${x} ${y}h1v1h-1Z`);
+function renderPixelDrawing(id) {
+  const [coat, shade, light] = PIXEL_PALETTES[id];
+  const ink = '#292638', pink = '#ee789b', white = '#fffafa', gold = '#f4c05e';
+  const grid = Array.from({ length: 32 }, () => Array(32).fill(null));
+  const box = (x, y, width, height, color) => {
+    assert.ok(x >= 0 && y >= 0 && x + width <= 32 && y + height <= 32);
+    for (let dy = 0; dy < height; dy++) for (let dx = 0; dx < width; dx++) {
+      grid[y + dy][x + dx] = color;
     }
+  };
+  const stamp = (x, y, rows, color) => {
+    const inside = (dx, dy) => rows[dy]?.[dx] === '#';
+    rows.forEach((row, dy) => [...row].forEach((cell, dx) => {
+      if (cell !== '#') return;
+      const edge = [[0, -1], [0, 1], [-1, 0], [1, 0]].some(([sx, sy]) => !inside(dx + sx, dy + sy));
+      box(x + dx, y + dy, 1, 1, edge ? ink : color);
+    }));
+  };
+  // Tails and ears sit behind the body; every feature stays on the integer grid.
+  if (id === 'rat' || id === 'pig' || id === 'monkey') {
+    stamp(23, 22, ['..#####', '..#####', '.....##', '##...##', '#######', '.#####.'], id === 'monkey' ? shade : pink);
   }
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64" shape-rendering="crispEdges" role="img" aria-label="${title} 도트 수호메이트">\n${[...colors].map(([fill, d]) => `<path fill="${fill}" d="${d}"/>`).join('\n')}\n</svg>\n`;
+  if (id === 'tiger' || id === 'dog') {
+    stamp(23, 20, ['...###', '...###', '...###', '######', '######', '.####.'], coat);
+    if (id === 'tiger') box(27, 22, 2, 1, ink);
+  }
+  if (id === 'dragon') {
+    stamp(1, 17, ['#.......', '###.....', '#####...', '.#######', '..######', '....####'], '#827bc2');
+    stamp(23, 17, ['.......#', '.....###', '...#####', '#######.', '######..', '####....'], '#827bc2');
+  }
+  if (id === 'rooster') {
+    stamp(22, 19, ['.....##', '...####', '.######', '#######', '######.', '#####..'], '#3a9f86');
+    box(26, 22, 2, 2, '#527cb4');
+  }
+  if (['rat', 'tiger', 'monkey'].includes(id)) {
+    stamp(4, id === 'monkey' ? 10 : 4, PIXEL_EAR, coat);
+    stamp(21, id === 'monkey' ? 10 : 4, PIXEL_EAR, coat);
+    box(6, id === 'monkey' ? 12 : 6, 3, 3, id === 'tiger' ? light : pink);
+    box(23, id === 'monkey' ? 12 : 6, 3, 3, id === 'tiger' ? light : pink);
+  }
+  if (id === 'rabbit' || id === 'horse') {
+    const ears = ['.###.', '#####', '#####', '#####', '#####', '#####', '#####', '.###.'];
+    stamp(8, 1, ears, coat); stamp(19, 1, ears, coat);
+    box(10, 3, 1, 4, pink); box(21, 3, 1, 4, pink);
+  }
+  if (id === 'ox' || id === 'sheep') {
+    stamp(3, 9, ['.####', '#####', '#####', '.####'], coat);
+    stamp(24, 9, ['####.', '#####', '#####', '####.'], coat);
+    stamp(5, 3, ['###...', '###...', '###...', '######', '.#####', '..####'], gold);
+    stamp(21, 3, ['...###', '...###', '...###', '######', '#####.', '####..'], gold);
+  }
+  if (id === 'dragon') {
+    stamp(7, 1, ['###....', '####...', '.####..', '.#####.', '..#####', '..#####', '...####'], gold);
+    stamp(18, 1, ['....###', '...####', '..####.', '.#####.', '#####..', '#####..', '####...'], gold);
+    stamp(3, 10, ['##..', '####', '####', '####', '##..'], shade);
+    stamp(25, 10, ['..##', '####', '####', '####', '..##'], shade);
+  }
+  if (id === 'pig') {
+    stamp(6, 3, ['###....', '#####..', '######.', '#######', '#######', '.######'], coat);
+    stamp(19, 3, ['....###', '..#####', '.######', '#######', '#######', '######.'], coat);
+    box(8, 5, 2, 2, shade); box(22, 5, 2, 2, shade);
+  }
+  if (id === 'rooster') {
+    stamp(11, 1, ['...###....', '...###.##.', '.#########', '##########', '#########.', '.#######..', '..#####...'], pink);
+  }
+  if (id === 'snake') {
+    stamp(6, 23, ['...############...', '.################.', '##################', '##################', '.################.', '...############...'], coat);
+    box(11, 26, 11, 1, shade);
+    stamp(11, 18, ['..######..', '.########.', '##########', '##########', '##########', '##########', '.########.', '..######..'], coat);
+    box(14, 21, 4, 5, light); box(14, 23, 4, 1, shade);
+  } else {
+    stamp(9, 26, ['.#####.', '#######', '#######', '.#####.'], coat);
+    stamp(16, 26, ['.#####.', '#######', '#######', '.#####.'], coat);
+    stamp(10, 21, PIXEL_BODY, coat);
+    box(13, 23, 6, 4, light); box(14, 27, 4, 1, light);
+    box(20, 23, 1, 3, shade);
+    stamp(7, 21, ['.##', '###', '###', '.##'], coat);
+    stamp(22, 21, ['##.', '###', '###', '##.'], coat);
+  }
+  stamp(6, 8, PIXEL_HEAD, coat);
+  box(23, 13, 2, 5, shade); box(21, 19, 3, 1, shade); box(20, 20, 3, 1, shade);
+  box(10, 10, 5, 1, light); box(9, 11, 3, 1, light);
+  if (id === 'monkey') {
+    stamp(9, 11, ['.####..####.', '############', '############', '############', '############', '############', '.##########.', '..########..'], light);
+  }
+  if (id === 'sheep') {
+    stamp(8, 12, ['..############..', '.##############.', '################', '################', '################', '.##############.', '..############..'], light);
+    box(9, 8, 3, 3, white); box(14, 7, 4, 4, white); box(20, 8, 3, 3, white);
+    box(13, 10, 1, 1, shade); box(19, 10, 1, 1, shade);
+  }
+  if (id === 'horse') {
+    stamp(11, 5, ['...#####.', '.########', '########.', '#######..', '.#####...'], shade);
+    box(15, 10, 2, 6, light);
+  }
+  if (id === 'dog') { stamp(5, 7, ['.####', '#####', '#####', '#####', '#####', '#####', '.###.'], shade);
+    stamp(22, 7, ['####.', '#####', '#####', '#####', '#####', '#####', '.###.'], shade); }
+  if (id === 'tiger') {
+    box(15, 9, 2, 3, ink); box(11, 9, 2, 2, ink); box(19, 9, 2, 2, ink);
+    box(7, 14, 2, 1, ink); box(7, 17, 2, 1, ink); box(23, 14, 2, 1, ink); box(23, 17, 2, 1, ink);
+  }
+  if (id === 'ox' || id === 'horse' || id === 'pig') {
+    stamp(10, 17, ['.##########.', '############', '############', '.##########.'], id === 'pig' ? shade : light);
+    box(13, 18, 1, 1, ink); box(18, 18, 1, 1, ink);
+  } else if (id === 'dragon') {
+    box(12, 17, 8, 3, light); box(13, 17, 1, 1, shade); box(18, 17, 1, 1, shade);
+    box(15, 9, 2, 2, gold);
+  } else {
+    box(12, 17, 8, 3, light);
+    box(15, 17, 2, 1, id === 'rooster' ? gold : ink);
+  }
+  box(11, 14, 2, 3, ink); box(19, 14, 2, 3, ink);
+  box(11, 14, 1, 1, white); box(19, 14, 1, 1, white);
+  if (!['ox', 'pig', 'horse'].includes(id)) {
+    box(9, 18, 2, 1, pink); box(21, 18, 2, 1, pink);
+    box(14, 20, 4, 1, ink);
+  }
+  if (id === 'rat') { box(7, 19, 3, 1, ink); box(22, 19, 3, 1, ink); }
+  if (id === 'rabbit') { box(15, 18, 2, 1, pink); box(15, 19, 1, 1, ink); }
+  if (id === 'snake') { box(15, 20, 2, 3, pink); box(14, 22, 1, 1, pink); box(17, 22, 1, 1, pink); }
+  if (id === 'dog') { box(15, 20, 2, 2, pink); }
+  if (id === 'rooster') {
+    box(14, 17, 4, 1, gold); box(13, 18, 6, 1, gold); box(15, 19, 2, 1, gold);
+    box(15, 20, 2, 3, pink); box(11, 29, 2, 1, gold); box(19, 29, 2, 1, gold);
+  }
+  return grid;
 }
 
-const pixelDrawings = await renderPixelDrawings();
+function renderPixelSvg(grid, title) {
+  const colors = new Map();
+  grid.forEach((row, y) => row.forEach((color, x) => {
+    if (color) colors.set(color, `${colors.get(color) || ''}M${x} ${y}h1v1h-1Z`);
+  }));
+  assert.ok(colors.size <= 10);
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 32 32" shape-rendering="crispEdges" role="img" aria-label="${title} 도트 수호메이트">\n${[...colors].map(([fill, d]) => `<path fill="${fill}" d="${d}"/>`).join('\n')}\n</svg>\n`;
+}
+
 for (const [id, spec] of Object.entries(ZODIAC_VECTORS)) {
   const svg = renderZodiacSvg(spec);
   assert.match(svg, /viewBox="0 0 256 256"/);
@@ -338,7 +449,7 @@ for (const [id, spec] of Object.entries(ZODIAC_VECTORS)) {
   const outFile = path.join(zodiacOutDir, `${id}.svg`);
   fs.writeFileSync(outFile, svg.replace(/[ \t]+$/gm, ''));
   console.log(`Generated ${path.relative(rootDir, outFile)} (${Buffer.byteLength(svg)} bytes)`);
-  const pixelSvg = renderPixelSvg(pixelDrawings[id], spec.title);
+  const pixelSvg = renderPixelSvg(renderPixelDrawing(id), spec.title);
   assert.doesNotMatch(pixelSvg, /<image|data:image/);
   fs.writeFileSync(path.join(zodiacOutDir, `${id}-pixel.svg`), pixelSvg);
 }

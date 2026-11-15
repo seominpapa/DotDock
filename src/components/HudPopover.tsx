@@ -6,7 +6,7 @@ import type {
   SyncQuotaResult,
   SystemStats
 } from '../types/dotdock';
-import { getZodiacById, getZodiacImage } from '../services/zodiac';
+import { getZodiacById, getZodiacPreview } from '../services/zodiac';
 import { WIDGET_REGISTRY, getWidgetById } from '../widgets/registry';
 import { formatCompanionLabel } from '../services/age';
 
@@ -47,7 +47,7 @@ export function HudPopover({
 }: HudPopoverProps) {
   const zodiac = getZodiacById(state.selectedZodiacId);
   const activeWidget = getWidgetById(state.activeWidgetId);
-  const charIconSrc = state.customImageDataUrl || getZodiacImage(zodiac, state.characterStyle);
+  const charIconSrc = state.customImageDataUrl || getZodiacPreview(zodiac, state.characterStyle);
 
   return (
     <div className="hud-popover" role="dialog" aria-label="DotDock 정보 HUD">

@@ -6,7 +6,7 @@ import type {
   ProviderId,
   ZodiacId
 } from '../types/dotdock';
-import { ZODIAC_LIST, getZodiacByBirthYear, getZodiacById, getZodiacImage } from '../services/zodiac';
+import { ZODIAC_LIST, getZodiacByBirthYear, getZodiacById, getZodiacPreview } from '../services/zodiac';
 import { getLocalDateString, parseBirthDate, formatCompanionLabel } from '../services/age';
 
 const AUTO_SYNC_OPTIONS: AutoSyncMinutes[] = [5, 10, 15, 20];
@@ -46,7 +46,7 @@ export function OnboardingModal({
   const validYear = Number.isInteger(parsedYear) && parsedYear >= 1900 && parsedYear <= new Date().getFullYear();
   const parsedBirthDate = parseBirthDate(birthDateInput);
   const activeZodiac = getZodiacById(state.selectedZodiacId);
-  const previewSprite = state.customImageDataUrl || getZodiacImage(activeZodiac, state.characterStyle);
+  const previewSprite = state.customImageDataUrl || getZodiacPreview(activeZodiac, state.characterStyle);
 
   const handleYearChange = (val: string) => {
     setYearInput(val);
@@ -248,7 +248,7 @@ export function OnboardingModal({
                   title={`${z.ttiLabel} (${z.hanja})`}
                 >
                   <img
-                    src={getZodiacImage(z, state.characterStyle)}
+                    src={getZodiacPreview(z, state.characterStyle)}
                     alt={z.ttiLabel}
                     className={`zodiac-thumb-sm ${state.characterStyle === 'pixel' ? 'is-pixel' : ''}`}
                   />

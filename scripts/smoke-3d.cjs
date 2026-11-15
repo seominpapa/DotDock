@@ -40,6 +40,10 @@ module.exports = async function verify3D({ application, page, profileDir, output
   report.graphics = await probeGraphics(page);
   const { available } = report.graphics;
   await page.getByRole('button', { name: '3D', exact: true }).click();
+  await expect.poll(() => page.locator('.zodiac-thumb').evaluateAll((images) =>
+    images.filter((image) => /\/model-previews\/[^/]+\.png$/.test(image.src)
+      && image.complete && image.naturalWidth >= 192 && image.naturalHeight >= 192).length)).toBe(12);
+  await page.screenshot({ path: path.join(outputDir, 'settings-3d-previews.png') });
 
   async function ready() {
     if (!available) {
@@ -72,6 +76,16 @@ module.exports = async function verify3D({ application, page, profileDir, output
     if (available) await canvas.screenshot({ path: path.join(outputDir, `model-${zodiacTitles.indexOf(title) + 1}.png`) });
   }
   await page.getByTitle('용띠 (辰)', { exact: true }).click();
+  await ready();
+  await expect(canvas).toHaveCount(available ? 1 : 0);
+  report.checks.push('12 bundled static GLB previews load in selection grid; only selected model uses a live canvas');
+  for (const [button, filename] of [['도트', 'dot'], ['벡터', 'vector']]) {
+    await page.getByRole('button', { name: button, exact: true }).click();
+    await expect(canvas).toHaveCount(0);
+    await expect.poll(() => page.locator('.sprite-img').evaluate((image) => image.complete && image.naturalWidth > 0)).toBe(true);
+    await page.locator('.sprite-stage').screenshot({ path: path.join(outputDir, `dragon-${filename}-1.5x.png`) });
+  }
+  await page.getByRole('button', { name: '3D', exact: true }).click();
   await ready();
   if (available) {
     await canvas.screenshot({ path: path.join(outputDir, 'character-3d-1.5x.png') });
