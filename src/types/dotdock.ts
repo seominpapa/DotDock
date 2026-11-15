@@ -35,6 +35,9 @@ export interface ProviderAuthInfo {
   accountLabel?: string;
   lastSyncedAt?: string;
   statusMessage?: string;
+  connectionSource?: 'local-api' | 'stored-auth';
+  accountUnverified?: boolean;
+  autoConnectDisabled?: boolean;
 }
 
 export type AuthStateMap = Record<ProviderId, ProviderAuthInfo>;

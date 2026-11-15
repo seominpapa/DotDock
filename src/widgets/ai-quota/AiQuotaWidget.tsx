@@ -109,7 +109,7 @@ export function AiQuotaWidget({
           title={info.statusMessage || '연결됨 — 클릭 시 인증 설정으로 이동'}
           onClick={() => onOpenSettingsTab?.('ai')}
         >
-          ● 연결됨
+          {provider === 'gemini' ? '● OAuth 연동' : '● 연결됨'}
         </button>
       );
     }

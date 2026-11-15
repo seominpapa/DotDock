@@ -227,6 +227,19 @@ async function verifyFirstRun() {
   })));
   report.checks.push('Gemini uses local auth detection on four screens without opening OAuth');
 
+  const connectedState = await page.evaluate(() => window.dotdock.getState());
+  connectedState.auth.gemini = { connected: true, method: 'oauth-session', connectionSource: 'local-api',
+    accountLabel: 'synthetic@example.invalid', lastSyncedAt: new Date().toISOString(),
+    statusMessage: 'Antigravity 로컬 서비스에서 실시간 사용량을 확인했습니다.' };
+  await application.evaluate(({ ipcMain }, fixtureState) => {
+    ipcMain.removeHandler('dotdock:detect-local-auth');
+    ipcMain.handle('dotdock:detect-local-auth', () => ({ ok: true, message: '격리된 연결 성공', state: fixtureState }));
+  }, connectedState);
+  await geminiCard().getByRole('button', { name: '로컬 인증 감지', exact: true }).click();
+  await expect(geminiCard().locator('.header-conn-pill')).toHaveText('● OAuth 연동');
+  await expect(geminiCard().locator('.header-conn-pill')).toHaveAttribute('title', /로컬 서비스/);
+  report.checks.push('successful Antigravity detection shows OAuth badge and the connection source tooltip');
+
   await page.getByTitle('창 닫기', { exact: true }).click();
   await expect.poll(() => application.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].getSize()[0]))
     .toBe(168);

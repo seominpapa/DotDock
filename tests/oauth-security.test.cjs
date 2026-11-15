@@ -25,6 +25,7 @@ function loadOAuth(overrides = {}) {
       shell: { openExternal: async (url) => { captured.authUrl = url; } },
       safeStorage: { isEncryptionAvailable: () => true, encryptString: (value) => Buffer.from(value), decryptString: (value) => value.toString() }
     };
+    if (id === './antigravity-local.cjs') return { queryAntigravityLocal: async () => ({ status: 'unavailable' }) };
     if (id === 'node:http') return fakeHttp;
     if (id === 'node:https') return overrides.https || { request: () => { throw new Error('Network is disabled in this test'); } };
     if (id === 'node:fs' && overrides.fs) return overrides.fs;

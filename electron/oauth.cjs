@@ -1,5 +1,7 @@
 const { app, shell, safeStorage } = require('electron');
 const { createCredentialStore, CredentialStoreError } = require('./credential-store.cjs');
+const { queryAntigravityLocal } = require('./antigravity-local.cjs');
+const { decodeAntigravityTokens } = require('./antigravity-credentials.cjs');
 const http = require('node:http');
 const https = require('node:https');
 const crypto = require('node:crypto');
@@ -65,6 +67,7 @@ const PROVIDER_META = {
 };
 
 const activeOAuthServers = new Map();
+let geminiSyncGeneration = 0;
 
 function clampPercent(val) {
   const num = Number(val);
@@ -1025,10 +1028,10 @@ function readAntigravityIdeTokens() {
         "SELECT value FROM ItemTable WHERE key LIKE '%auth%' OR key LIKE '%oauth%' OR key LIKE '%antigravity%' OR key LIKE '%token%' OR key LIKE '%jetski%';";
       const out = queryAntigravityStateDb(dbPath, sql);
       if (!out) continue;
-      const found = {};
       for (const line of out.split('\n')) {
         const trimmed = line.trim();
         if (!trimmed) continue;
+        const found = {};
         try {
           const parsed = JSON.parse(trimmed);
           findOAuthFieldsDeep(parsed, 0, found);
@@ -1048,9 +1051,9 @@ function readAntigravityIdeTokens() {
           const refreshMatch = trimmed.match(/1\/\/[A-Za-z0-9._-]+/);
           if (refreshMatch && !found.refreshToken) found.refreshToken = refreshMatch[0];
         }
-      }
-      if (found.accessToken || found.refreshToken) {
-        return found;
+        if (found.accessToken || found.refreshToken) return found;
+        const decoded = decodeAntigravityTokens(trimmed);
+        if (decoded) return decoded;
       }
     } catch {
       // ignore sqlite read failures
@@ -1138,7 +1141,7 @@ function readAntigravityCredentialCandidates() {
   return candidates;
 }
 
-async function fetchGoogleUserEmail(accessToken) {
+async function fetchGoogleUserIdentity(accessToken) {
   const res = await requestJsonHttps('https://www.googleapis.com/oauth2/v2/userinfo', {
     method: 'GET',
     headers: {
@@ -1146,7 +1149,7 @@ async function fetchGoogleUserEmail(accessToken) {
       Accept: 'application/json'
     }
   });
-  return res.ok ? res.data?.email || null : null;
+  return { email: res.ok ? res.data?.email || null : null, status: res.status };
 }
 
 async function fetchAntigravityLoadCodeAssist(accessToken) {
@@ -1323,112 +1326,134 @@ function summarizeAntigravityModels(payload) {
   };
 }
 
-async function syncGeminiCli(appState, nowIso) {
+function verifiedGeminiAccount(value) {
+  return typeof value === 'string' && value.length <= 320 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value) ? value.toLowerCase() : null;
+}
+
+function applyGeminiSummary(appState, summary, nowIso, email, source, method = 'oauth-session') {
+  const bucket = (group, label) => ({ ...group, limit: 100, unit: '%', label });
+  appState.quota = {
+    ...appState.quota,
+    gemini: {
+      fiveHour: bucket(summary.gemini, 'Gemini 모델'),
+      weekly: bucket(summary.partner, 'Claude · GPT 모델')
+    },
+    lastUpdatedAt: nowIso,
+    source: 'oauth-sync'
+  };
+  appState.auth = { ...appState.auth, gemini: {
+    connected: true,
+    method,
+    accountLabel: email || 'Antigravity Google',
+    accountUnverified: !email,
+    lastSyncedAt: nowIso,
+    connectionSource: source,
+    autoConnectDisabled: false,
+    statusMessage: source === 'local-api'
+      ? 'Antigravity 로컬 서비스에서 실시간 사용량을 확인했습니다.'
+      : 'Antigravity 저장된 인증으로 실시간 사용량을 확인했습니다.'
+  } };
+}
+
+function failGeminiSync(appState, message) {
+  const previous = appState.auth.gemini;
+  if (!previous.lastSyncedAt) {
+    clearProviderFakeFallback(appState, 'gemini', message);
+  }
+  appState.auth = { ...appState.auth, gemini: {
+    ...previous,
+    connected: false,
+    method: 'none',
+    statusMessage: previous.lastSyncedAt ? `${message} 마지막 정상 조회 값을 표시합니다.` : message
+  } };
+  return false;
+}
+
+async function syncGeminiCli(appState, nowIso, expectedAccount, isCurrent) {
   const candidates = readAntigravityCredentialCandidates();
 
   for (const cand of candidates) {
-    let { accessToken, refreshToken, expiresAt, email, clientId, clientSecret, source, saveOnRefresh } = cand;
-
-    const needsPreemptiveRefresh =
-      (!accessToken && refreshToken) ||
-      (typeof expiresAt === 'number' && expiresAt - Date.now() < 60_000 && refreshToken);
-
-    if (needsPreemptiveRefresh) {
-      const refreshed = await refreshOAuthToken(
-        OAUTH_SPECS.gemini,
-        refreshToken,
-        clientId,
-        clientSecret
-      );
-      if (refreshed?.accessToken) {
-        accessToken = refreshed.accessToken;
-        refreshToken = refreshed.refreshToken;
-        expiresAt = refreshed.expiresAt;
-        if (saveOnRefresh) {
-          saveOAuthCredential('gemini', {
-            accessToken,
-            refreshToken,
-            expiresAt,
-            email,
-            clientId,
-            clientSecret
-          });
-        }
-      }
+    if (!isCurrent()) return false;
+    let { accessToken, refreshToken, expiresAt, clientId, clientSecret, source, saveOnRefresh } = cand;
+    let refreshedCredential = false;
+    const refresh = async () => {
+      const result = await refreshOAuthToken(OAUTH_SPECS.gemini, refreshToken, clientId, clientSecret);
+      if (!result?.accessToken) return false;
+      accessToken = result.accessToken;
+      refreshToken = result.refreshToken;
+      expiresAt = result.expiresAt;
+      refreshedCredential = true;
+      return true;
+    };
+    if ((!accessToken && refreshToken) || (typeof expiresAt === 'number' && expiresAt - Date.now() < 60_000 && refreshToken)) {
+      await refresh();
     }
+    if (!accessToken || !isCurrent()) continue;
 
-    if (!accessToken) continue;
+    let identity = expectedAccount ? await fetchGoogleUserIdentity(accessToken) : null;
+    if (!isCurrent()) return false;
+    if (expectedAccount && [401, 403].includes(identity.status) && refreshToken && !refreshedCredential && await refresh()) {
+      if (!isCurrent()) return false;
+      identity = await fetchGoogleUserIdentity(accessToken);
+    }
+    let email = verifiedGeminiAccount(identity?.email);
+    if (!isCurrent()) return false;
+    if (expectedAccount && email !== expectedAccount) continue;
 
     let loadMeta = await fetchAntigravityLoadCodeAssist(accessToken);
     let res = await fetchAntigravityModels(accessToken, loadMeta.projectId);
-    if ((res.status === 401 || res.status === 403) && refreshToken) {
-      const refreshed = await refreshOAuthToken(
-        OAUTH_SPECS.gemini,
-        refreshToken,
-        clientId,
-        clientSecret
-      );
-      if (refreshed?.accessToken) {
-        accessToken = refreshed.accessToken;
-        refreshToken = refreshed.refreshToken;
-        expiresAt = refreshed.expiresAt;
-        if (saveOnRefresh) {
-          saveOAuthCredential('gemini', {
-            accessToken,
-            refreshToken,
-            expiresAt,
-            email,
-            clientId,
-            clientSecret
-          });
-        }
-        loadMeta = await fetchAntigravityLoadCodeAssist(accessToken);
-        res = await fetchAntigravityModels(accessToken, loadMeta.projectId);
-      }
+    if ((res.status === 401 || res.status === 403) && refreshToken && await refresh()) {
+      if (!isCurrent()) return false;
+      email = verifiedGeminiAccount((await fetchGoogleUserIdentity(accessToken)).email);
+      if (!isCurrent()) return false;
+      if (expectedAccount && email !== expectedAccount) continue;
+      loadMeta = await fetchAntigravityLoadCodeAssist(accessToken);
+      res = await fetchAntigravityModels(accessToken, loadMeta.projectId);
     }
-
-    if (!res.ok || !res.data) continue;
-
+    if (!res.ok || !res.data || !isCurrent()) continue;
     const summary = summarizeAntigravityModels(res.data);
-    if (!summary) continue;
+    if (!summary?.hasAnyQuota) continue;
+    if (!email) email = verifiedGeminiAccount((await fetchGoogleUserIdentity(accessToken)).email);
+    if (!isCurrent() || (expectedAccount && email !== expectedAccount)) return false;
 
-    if (!email) {
-      email = await fetchGoogleUserEmail(accessToken);
+    if (refreshedCredential && saveOnRefresh) {
+      saveOAuthCredential('gemini', { accessToken, refreshToken, expiresAt, email, clientId, clientSecret });
     }
-
-    appState.quota.gemini.fiveHour = {
-      used: summary.gemini.used,
-      limit: 100,
-      unit: '%',
-      resetLabel: summary.gemini.resetLabel,
-      label: 'Gemini 모델',
-      hidden: summary.gemini.hidden
-    };
-    appState.quota.gemini.weekly = {
-      used: summary.partner.used,
-      limit: 100,
-      unit: '%',
-      resetLabel: summary.partner.resetLabel,
-      label: 'Claude · GPT 모델',
-      hidden: summary.partner.hidden
-    };
-    appState.quota.lastUpdatedAt = nowIso;
-    appState.quota.source = 'oauth-sync';
-
-    const resolvedMethod = source === 'token' ? 'token' : 'oauth-session';
-    appState.auth.gemini = {
-      connected: true,
-      method: resolvedMethod,
-      accountLabel: email || 'Antigravity Google',
-      lastSyncedAt: nowIso,
-      statusMessage: loadMeta?.tierName
-        ? `Antigravity 실시간 모델 쿼터 동기화 완료 (${loadMeta.tierName})`
-        : 'Antigravity 실시간 모델 쿼터 동기화 완료'
-    };
+    applyGeminiSummary(appState, summary, nowIso, email, 'stored-auth', source === 'token' ? 'token' : 'oauth-session');
     return true;
   }
-
   return false;
+}
+
+async function syncGeminiHybrid(appState, nowIso, hooks) {
+  const generation = ++geminiSyncGeneration;
+  const isCurrent = () => geminiSyncGeneration === generation && !appState.auth.gemini.autoConnectDisabled
+    && (!hooks?.getState || hooks.getState() === appState);
+  const previous = appState.auth.gemini;
+  const expectedAccount = verifiedGeminiAccount(previous.accountLabel);
+  let local;
+  try {
+    local = await queryAntigravityLocal();
+  } catch {
+    local = { status: 'unavailable' };
+  }
+  if (!isCurrent()) return false;
+  const email = verifiedGeminiAccount(local.accountLabel);
+  if (expectedAccount && email && expectedAccount !== email) {
+    return failGeminiSync(appState, 'Antigravity 계정이 다릅니다. 계정을 바꾸려면 연결 해제 후 다시 감지해 주세요.');
+  }
+  const summary = local.status === 'ok' ? summarizeAntigravityModels({ models: local.models }) : null;
+  if (summary?.hasAnyQuota && (!expectedAccount || email === expectedAccount)) {
+    applyGeminiSummary(appState, summary, nowIso, email, 'local-api');
+    return true;
+  }
+  // Without a verified account, switching sources could silently mix two users' quotas.
+  if (previous.accountUnverified && !expectedAccount && !email) {
+    return failGeminiSync(appState, 'Antigravity 계정을 확인하지 못해 저장된 인증으로 전환하지 않았습니다. 앱에서 로그인한 뒤 로컬 인증 감지를 눌러 주세요.');
+  }
+  if (await syncGeminiCli(appState, nowIso, expectedAccount || email, isCurrent)) return true;
+  if (!isCurrent()) return false;
+  return failGeminiSync(appState, 'Antigravity 연결을 확인하지 못했습니다. 앱에서 로그인한 뒤 실행하고 [로컬 인증 감지]를 눌러 주세요.');
 }
 
 // =============================================================================
@@ -1496,7 +1521,7 @@ function clearProviderFakeFallback(appState, provider, statusMessage) {
       unit: '%',
       resetLabel: '로컬 인증 감지 필요',
       label: 'Gemini 모델',
-      hidden: false
+      hidden: true
     };
     appState.quota.gemini.weekly = {
       used: 0,
@@ -1504,18 +1529,17 @@ function clearProviderFakeFallback(appState, provider, statusMessage) {
       unit: '%',
       resetLabel: '로컬 인증 감지 필요',
       label: 'Claude · GPT 모델',
-      hidden: false
+      hidden: true
     };
     appState.auth.gemini = {
       connected: false,
       method: 'none',
-      accountLabel: readGeminiAccountHint() || undefined,
       statusMessage
     };
   }
 }
 
-async function detectLocalAuth(provider, appState, hooks) {
+async function detectLocalAuth(provider, appState, hooks, manual = Boolean(provider)) {
   const targets = provider ? [provider] : ['codex', 'claude', 'gemini'];
   const detected = [];
   const nowIso = new Date().toISOString();
@@ -1544,16 +1568,9 @@ async function detectLocalAuth(provider, appState, hooks) {
         );
       }
     } else if (id === 'gemini') {
-      const ok = await syncGeminiCli(appState, nowIso);
-      if (ok) {
-        detected.push('Antigravity·Gemini');
-      } else {
-        clearProviderFakeFallback(
-          appState,
-          'gemini',
-          'Antigravity 인증을 확인하지 못했습니다. Antigravity 앱에서 로그인한 뒤 [로컬 인증 감지]를 눌러 주세요.'
-        );
-      }
+      if (appState.auth.gemini.autoConnectDisabled && !manual) continue;
+      if (manual) appState.auth = { ...appState.auth, gemini: { ...appState.auth.gemini, autoConnectDisabled: false } };
+      if (await syncGeminiHybrid(appState, nowIso, hooks)) detected.push('Antigravity·Gemini');
     }
   }
 
@@ -1570,7 +1587,7 @@ async function detectLocalAuth(provider, appState, hooks) {
       : provider === 'gemini'
         ? appState.auth.gemini.statusMessage
         : '인증을 확인하지 못했습니다. Codex·Claude는 [🌐 웹 로그인], Antigravity는 앱에서 로그인한 뒤 [로컬 인증 감지]를 눌러 주세요.';
-  return { ok: detected.length > 0, message, state: appState };
+  return { ok: detected.length > 0, message, state: hooks?.getState?.() || appState };
 }
 
 function renderCallbackHtml(ok, title, subtitle) {
@@ -1771,7 +1788,7 @@ function openOAuthLoginWindow(provider, appState, hooks) {
 }
 
 async function syncProviderQuota(provider, appState, hooks) {
-  return detectLocalAuth(provider, appState, hooks);
+  return detectLocalAuth(provider, appState, hooks, false);
 }
 
 async function saveProviderToken(provider, token, appState, hooks) {
@@ -1822,6 +1839,7 @@ async function disconnectProvider(provider, appState, hooks) {
   }
 
   closeActiveOAuthServer(provider);
+  if (provider === 'gemini') geminiSyncGeneration++;
 
   const secrets = readSecrets();
   let changed = false;
@@ -1842,6 +1860,7 @@ async function disconnectProvider(provider, appState, hooks) {
   }
 
   clearProviderFakeFallback(appState, provider, `${meta.label} 연결 해제됨`);
+  if (provider === 'gemini') appState.auth.gemini = { ...appState.auth.gemini, autoConnectDisabled: true };
   hooks?.saveState();
   hooks?.notifyStateUpdated();
 

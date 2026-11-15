@@ -579,6 +579,7 @@ function createTray() {
 
 function getOAuthHooks() {
   return {
+    getState: () => appState,
     saveState: () => saveStateToDisk(),
     notifyStateUpdated: () => sendCommand('state-updated', appState),
     mergeLocalQuotaFile: () => {

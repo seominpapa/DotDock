@@ -24,10 +24,13 @@ function loadOAuth(overrides = {}) {
     if (id === 'node:https' && overrides.https) return overrides.https;
     if (id === 'node:http' || id === 'node:https') return { request: () => { throw new Error('Network is disabled in this test'); } };
     if (id === 'node:os' && overrides.homeDirectory) return { homedir: () => overrides.homeDirectory };
-    if (id === 'node:fs' && overrides.fs) return overrides.fs;
+    if (id === 'node:fs') return overrides.fs || { ...fs, existsSync: () => false };
+    if (id === './antigravity-local.cjs') return {
+      queryAntigravityLocal: overrides.local || (async () => ({ status: 'unavailable' }))
+    };
     if (id === './credential-store.cjs') return {
       ...require('../electron/credential-store.cjs'),
-      createCredentialStore: () => ({ read: () => ({}) })
+      createCredentialStore: () => overrides.store || ({ read: () => ({}), write: () => {} })
     };
     if (id.startsWith('./')) return require(path.join(path.dirname(filename), id));
     return require(id);
@@ -49,7 +52,7 @@ function createDatabase(t, relativePath = 'state.vscdb') {
   return { database, filename, directory, read: loadOAuth().queryDatabaseForTest };
 }
 
-function loadWindowsIde(t, respond) {
+function loadWindowsIde(t, respond, overrides = {}) {
   const fixture = createDatabase(t, path.join('Antigravity', 'User', 'globalStorage', 'state.vscdb'));
   fixture.database.exec('PRAGMA journal_mode=WAL; PRAGMA wal_autocheckpoint=0;');
   fixture.database.prepare('INSERT INTO ItemTable VALUES (?, ?)').run('antigravityAuthStatus', JSON.stringify({ accessToken: 'ya29.synthetic-stale' }));
@@ -60,24 +63,26 @@ function loadWindowsIde(t, respond) {
     env: { APPDATA: fixture.directory },
     homeDirectory: path.join(fixture.directory, 'synthetic-home'),
     fs: { ...fs, existsSync: (filename) => filename === fixture.filename && fs.existsSync(filename) },
+    ...overrides,
     https: {
       request: (options, onResponse) => {
         requests.push(options);
         const request = new EventEmitter();
         request.write = () => {};
         request.end = () => {
-          const { status, data } = respond(options);
-          const response = new EventEmitter();
-          response.statusCode = status;
-          onResponse(response);
-          response.emit('data', Buffer.from(JSON.stringify(data)));
-          response.emit('end');
+          Promise.resolve(respond(options)).then(({ status, data }) => {
+            const response = new EventEmitter();
+            response.statusCode = status;
+            onResponse(response);
+            response.emit('data', Buffer.from(JSON.stringify(data)));
+            response.emit('end');
+          });
         };
         return request;
       }
     }
   });
-  return { oauth, requests };
+  return { oauth, requests, database: fixture.database };
 }
 
 test('Windows reads current committed Antigravity credentials from a live WAL without sqlite3', (t) => {
@@ -204,4 +209,244 @@ test('an Antigravity API 401 never reports the detected Windows credential as co
   assert.equal(state.auth.gemini.connected, false);
   assert.equal(requests.length, 2);
   assert.ok(requests.every(({ headers }) => headers.Authorization === 'Bearer ya29.synthetic-current'));
+});
+
+const account = 'synthetic@example.invalid';
+const hooks = { saveState: () => {}, notifyStateUpdated: () => {} };
+const localModels = { 'gemini-local': { quotaInfo: { remainingFraction: 0.6 } } };
+function previousState() {
+  return {
+    auth: { gemini: { connected: true, method: 'oauth-session', accountLabel: account,
+      lastSyncedAt: '2026-01-01T00:00:00.000Z', connectionSource: 'stored-auth' } },
+    quota: { source: 'oauth-sync', gemini: {
+      fiveHour: { used: 31, limit: 100, unit: '%', label: 'Gemini 모델', resetLabel: '이전 값', hidden: false },
+      weekly: { used: 52, limit: 100, unit: '%', label: 'Claude · GPT 모델', resetLabel: '이전 값', hidden: false }
+    } }
+  };
+}
+
+test('local service success updates OAuth state without inspecting stored credentials or cloud APIs', async () => {
+  const oauth = loadOAuth({
+    local: async () => ({ status: 'ok', accountLabel: account, models: localModels }),
+    fs: { existsSync: () => { throw new Error('Stored files must not be inspected after local success'); } }
+  });
+  const state = previousState();
+  const result = await oauth.detectLocalAuth('gemini', state, hooks);
+  assert.equal(result.ok, true);
+  assert.equal(state.auth.gemini.connected, true);
+  assert.equal(state.auth.gemini.method, 'oauth-session');
+  assert.equal(state.auth.gemini.connectionSource, 'local-api');
+  assert.equal(state.quota.gemini.fiveHour.used, 40);
+  assert.equal(state.quota.gemini.weekly.hidden, true, 'never mix the previous remote partner pool into local results');
+  assert.match(state.auth.gemini.statusMessage, /로컬 서비스/);
+});
+
+test('unavailable or failed local service falls back to the existing saved authentication path', async (t) => {
+  for (const local of [async () => ({ status: 'unavailable' }), async () => { throw new Error('private local failure'); }]) {
+    const { oauth, requests } = loadWindowsIde(t, ({ path: requestPath }) => {
+      if (requestPath === '/oauth2/v2/userinfo') return { status: 200, data: { email: account } };
+      if (requestPath === '/v1internal:loadCodeAssist') return { status: 200, data: {} };
+      return { status: 200, data: { models: localModels } };
+    }, { local });
+    const state = previousState();
+    const result = await oauth.detectLocalAuth('gemini', state, hooks);
+    assert.equal(result.ok, true);
+    assert.equal(state.auth.gemini.connectionSource, 'stored-auth');
+    assert.match(state.auth.gemini.statusMessage, /저장된 인증/);
+    assert.equal(state.quota.gemini.fiveHour.used, 40);
+    assert.ok(requests.length > 0);
+  }
+});
+
+test('failed dual detection preserves last good quotas and sync time instead of inventing zero usage', async () => {
+  const oauth = loadOAuth({ fs: { existsSync: () => false } });
+  const state = previousState();
+  const before = structuredClone(state.quota.gemini);
+  const synced = state.auth.gemini.lastSyncedAt;
+  const result = await oauth.detectLocalAuth('gemini', state, hooks);
+  assert.equal(result.ok, false);
+  assert.equal(state.auth.gemini.connected, false);
+  assert.deepEqual(state.quota.gemini, before);
+  assert.equal(state.auth.gemini.lastSyncedAt, synced);
+  assert.match(state.auth.gemini.statusMessage, /마지막|이전/);
+});
+
+test('first-time dual failure hides unknown quota bars', async () => {
+  const oauth = loadOAuth({ fs: { existsSync: () => false } });
+  const state = { auth: { gemini: {} }, quota: { gemini: {} } };
+  assert.equal((await oauth.detectLocalAuth('gemini', state, hooks)).ok, false);
+  assert.equal(state.quota.gemini.fiveHour.hidden, true);
+  assert.equal(state.quota.gemini.weekly.hidden, true);
+});
+
+test('different local account cannot replace a bound account or silently try another identity', async () => {
+  const oauth = loadOAuth({
+    local: async () => ({ status: 'ok', accountLabel: 'other@example.invalid', models: localModels }),
+    fs: { existsSync: () => { throw new Error('Account mismatch must stop fallback'); } }
+  });
+  const state = previousState();
+  const before = structuredClone(state.quota.gemini);
+  const result = await oauth.detectLocalAuth('gemini', state, hooks);
+  assert.equal(result.ok, false);
+  assert.equal(state.auth.gemini.accountLabel, account);
+  assert.equal(state.auth.gemini.connected, false);
+  assert.deepEqual(state.quota.gemini, before);
+  assert.match(state.auth.gemini.statusMessage, /계정/);
+});
+
+test('remote fallback verifies the actual token owner before accepting quotas for a bound account', async (t) => {
+  const { oauth, requests } = loadWindowsIde(t, ({ path: requestPath }) => {
+    if (requestPath === '/oauth2/v2/userinfo') return { status: 200, data: { email: 'other@example.invalid' } };
+    return { status: 200, data: { models: localModels } };
+  });
+  const state = previousState();
+  const result = await oauth.detectLocalAuth('gemini', state, hooks);
+  assert.equal(result.ok, false);
+  assert.equal(state.auth.gemini.accountLabel, account);
+  assert.equal(state.quota.gemini.fiveHour.used, 31);
+  assert.ok(requests.every(({ path: requestPath }) => requestPath === '/oauth2/v2/userinfo'));
+});
+
+test('local success without account identity cannot later switch to unidentified saved credentials', async (t) => {
+  let localAvailable = true;
+  const { oauth, requests } = loadWindowsIde(t, () => ({ status: 200, data: { models: localModels } }), {
+    local: async () => localAvailable ? { status: 'ok', models: localModels } : { status: 'unavailable' }
+  });
+  const state = { auth: { gemini: {} }, quota: { gemini: {} } };
+  assert.equal((await oauth.detectLocalAuth('gemini', state, hooks)).ok, true);
+  localAvailable = false;
+  assert.equal((await oauth.detectLocalAuth('gemini', state, hooks)).ok, false);
+  assert.equal(requests.length, 0);
+  assert.equal(state.quota.gemini.fiveHour.used, 40);
+});
+
+test('disconnect disables automatic reconnection until the user explicitly detects again', async () => {
+  let calls = 0;
+  const oauth = loadOAuth({ local: async () => { calls++; return { status: 'ok', accountLabel: account, models: localModels }; } });
+  const state = previousState();
+  await oauth.disconnectProvider('gemini', state, hooks);
+  assert.equal(state.auth.gemini.autoConnectDisabled, true);
+  assert.equal((await oauth.syncProviderQuota('gemini', state, hooks)).ok, false);
+  assert.equal(calls, 0);
+  state.auth = { ...state.auth, codex: {}, claude: {} };
+  state.quota = { ...state.quota, codex: {}, claude: {} };
+  await oauth.detectLocalAuth(undefined, state, hooks);
+  assert.equal(calls, 0);
+  assert.equal((await oauth.detectLocalAuth('gemini', state, hooks)).ok, true);
+  assert.equal(state.auth.gemini.autoConnectDisabled, false);
+  assert.equal(calls, 1);
+});
+
+test('disconnect while local detection is pending invalidates the late result', async () => {
+  let resolveLocal;
+  const oauth = loadOAuth({ local: () => new Promise((resolve) => { resolveLocal = resolve; }) });
+  const state = previousState();
+  const pending = oauth.detectLocalAuth('gemini', state, hooks);
+  await oauth.disconnectProvider('gemini', state, hooks);
+  resolveLocal({ status: 'ok', accountLabel: account, models: localModels });
+  assert.equal((await pending).ok, false);
+  assert.equal(state.auth.gemini.connected, false);
+  assert.equal(state.auth.gemini.autoConnectDisabled, true);
+});
+
+function encodedCredential() {
+  const field = (number, value) => {
+    const bytes = Buffer.isBuffer(value) ? value : Buffer.from(value);
+    assert.ok(bytes.length < 128);
+    return Buffer.concat([Buffer.from([number * 8 + 2, bytes.length]), bytes]);
+  };
+  const info = field(1, 'ya29.synthetic-current');
+  const row = field(1, info.toString('base64'));
+  const entry = Buffer.concat([field(1, 'oauthTokenInfoSentinelKey'), field(2, row)]);
+  return field(1, entry).toString('base64');
+}
+
+test('modern encoded Windows IDE credentials connect through the same public detection API', async t => {
+  const { oauth, requests, database } = loadWindowsIde(t, ({ path: requestPath }) => ({ status: 200,
+    data: requestPath === '/oauth2/v2/userinfo' ? { email: account } : { models: localModels } }));
+  database.prepare('UPDATE ItemTable SET key=?, value=?').run('antigravityUnifiedStateSync.oauthToken', encodedCredential());
+  const state = { auth: { gemini: {} }, quota: { gemini: {} } };
+  assert.equal((await oauth.detectLocalAuth('gemini', state, hooks)).ok, true);
+  assert.equal(state.auth.gemini.connectionSource, 'stored-auth');
+  assert.ok(requests.every(({ headers }) => headers.Authorization === 'Bearer ya29.synthetic-current'));
+});
+
+test('bound account refreshes an expired token with unknown expiry before verifying identity', async t => {
+  const writes = [];
+  const { oauth, requests } = loadWindowsIde(t, ({ path: requestPath, headers }) => {
+    if (requestPath === '/token') return { status: 200, data: { access_token: 'ya29.synthetic-refreshed', expires_in: 3600 } };
+    if (requestPath === '/oauth2/v2/userinfo') return headers.Authorization === 'Bearer ya29.synthetic-expired'
+      ? { status: 401, data: {} } : { status: 200, data: { email: account } };
+    return { status: 200, data: { models: localModels } };
+  }, { store: {
+    read: () => ({ oauthTokens: { gemini: { accessToken: 'ya29.synthetic-expired', refreshToken: '1//synthetic-refresh' } } }),
+    write: value => writes.push(value)
+  } });
+  const state = previousState();
+  assert.equal((await oauth.detectLocalAuth('gemini', state, hooks)).ok, true);
+  assert.ok(requests.some(({ path: requestPath }) => requestPath === '/token'));
+  assert.equal(writes.length, 1);
+  assert.equal(writes[0].oauthTokens.gemini.accessToken, 'ya29.synthetic-refreshed');
+});
+
+test('remote response without recognized model quota never claims connection', async t => {
+  const { oauth } = loadWindowsIde(t, () => ({ status: 200, data: { models: { unknown: { quotaInfo: { remainingFraction: 0.5 } } } } }));
+  const state = { auth: { gemini: {} }, quota: { gemini: {} } };
+  assert.equal((await oauth.detectLocalAuth('gemini', state, hooks)).ok, false);
+  assert.equal(state.auth.gemini.connected, false);
+  assert.equal(state.quota.gemini.fiveHour.hidden, true);
+});
+
+test('a replaced application state and disconnect invalidate older requests and return the current state', async () => {
+  let resolveLocal;
+  const oauth = loadOAuth({ local: () => new Promise(resolve => { resolveLocal = resolve; }) });
+  let current = previousState();
+  const currentHooks = { ...hooks, getState: () => current };
+  const pending = oauth.detectLocalAuth('gemini', current, currentHooks);
+  current = structuredClone(current);
+  await oauth.disconnectProvider('gemini', current, currentHooks);
+  resolveLocal({ status: 'ok', accountLabel: account, models: localModels });
+  const result = await pending;
+  assert.equal(result.ok, false);
+  assert.equal(result.state, current);
+  assert.equal(current.auth.gemini.connected, false);
+});
+
+test('a newly verified local identity lets anonymous history fall back only to that account', async t => {
+  for (const email of [account, 'other@example.invalid']) {
+    const { oauth } = loadWindowsIde(t, ({ path: requestPath }) => ({ status: 200,
+      data: requestPath === '/oauth2/v2/userinfo' ? { email } : { models: localModels } }), {
+      local: async () => ({ status: 'no-quota', accountLabel: account })
+    });
+    const state = previousState();
+    state.auth.gemini = { ...state.auth.gemini, accountLabel: 'Antigravity Google', accountUnverified: true };
+    assert.equal((await oauth.detectLocalAuth('gemini', state, hooks)).ok, email === account);
+    assert.equal(state.quota.gemini.fiveHour.used, email === account ? 40 : 31);
+  }
+});
+
+test('disconnect during cloud quota lookup never saves refreshed tokens or applies its late result', async t => {
+  let releaseModels;
+  let started;
+  const modelsStarted = new Promise(resolve => { started = resolve; });
+  const writes = [];
+  let credentials = { oauthTokens: { gemini: { accessToken: 'ya29.synthetic-expired',
+    refreshToken: '1//synthetic-refresh', expiresAt: 1 } } };
+  const { oauth } = loadWindowsIde(t, ({ path: requestPath }) => {
+    if (requestPath === '/token') return { status: 200, data: { access_token: 'ya29.synthetic-refreshed' } };
+    if (requestPath === '/oauth2/v2/userinfo') return { status: 200, data: { email: account } };
+    if (requestPath === '/v1internal:fetchAvailableModels') return new Promise(resolve => { releaseModels = resolve; started(); });
+    return { status: 200, data: {} };
+  }, { store: { read: () => structuredClone(credentials), write: value => { writes.push(value); credentials = value; } } });
+  const state = previousState();
+  const pending = oauth.detectLocalAuth('gemini', state, hooks);
+  await modelsStarted;
+  assert.equal(writes.length, 0, 'do not save a refreshed token until quota and identity are verified');
+  await oauth.disconnectProvider('gemini', state, hooks);
+  const writesAfterDisconnect = writes.length;
+  releaseModels({ status: 200, data: { models: localModels } });
+  assert.equal((await pending).ok, false);
+  assert.equal(writes.length, writesAfterDisconnect);
+  assert.equal(state.auth.gemini.connected, false);
+  assert.equal(state.auth.gemini.autoConnectDisabled, true);
 });

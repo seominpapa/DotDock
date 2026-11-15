@@ -1,10 +1,10 @@
 {
-  "version": "0.1.8",
-  "tag": "v0.1.8",
-  "baseUrl": "https://raw.githubusercontent.com/seominpapa/DotDock/v0.1.8/public/models/",
+  "version": "0.1.9",
+  "tag": "v0.1.9",
+  "baseUrl": "https://raw.githubusercontent.com/seominpapa/DotDock/v0.1.9/public/models/",
   "archive": {
-    "file": "DotDock-3D-Models-0.1.8.zip",
-    "url": "https://github.com/seominpapa/DotDock/releases/download/v0.1.8/DotDock-3D-Models-0.1.8.zip"
+    "file": "DotDock-3D-Models-0.1.9.zip",
+    "url": "https://github.com/seominpapa/DotDock/releases/download/v0.1.9/DotDock-3D-Models-0.1.9.zip"
   },
   "models": {
     "rat": {
