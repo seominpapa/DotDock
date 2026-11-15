@@ -62,6 +62,7 @@ GitHub의 최신 정식 릴리스를 조회하고 현재 OS·CPU에 맞는 설�
 
 - **Codex·Claude:** 웹 로그인 또는 기존 로컬 CLI 인증을 감지하여 사용량 조회를 시도합니다. 공급자 계정·요금제·API 응답에 따라 지원되는 항목만 표시합니다.
 - **Antigravity/Gemini:** Antigravity에서 Google 계정으로 로그인한 뒤 DotDock의 **로컬 인증 감지**를 누릅니다. Gemini 모델과 Claude/GPT 모델 풀을 구분하며 각 풀에서 잔여율이 가장 낮은 모델을 표시합니다. 일반 Gemini 앱의 5시간/주간 한도를 뜻하지 않습니다.
+- Antigravity는 로컬에 저장된 인증 정보를 감지하는 방식이므로, 운영체제·앱 버전·인증 저장 형식에 따라 연결 및 사용량 조회가 동작하지 않을 수 있습니다.
 - Windows에서도 별도 `sqlite3` 설치 없이 앱에 포함된 SQLite로 Antigravity의 현재 인증 DB와 WAL을 읽습니다. 원본 DB는 읽기 전용으로 열며 삭제된 토큰은 사용하지 않습니다. 연결되지 않으면 Antigravity 앱에서 로그인을 확인한 뒤 **로컬 인증 감지**를 다시 누르세요.
 - 공급자 API·인증 형식이 바뀌면 연동이 중단될 수 있습니다. 실제 개인 계정의 OAuth 성공 여부는 자동화 테스트에서 검증하지 않습니다.
 - 자체 Google OAuth를 개발하는 경우 `DOTDOCK_GOOGLE_CLIENT_ID`, `DOTDOCK_GOOGLE_CLIENT_SECRET` 환경변수를 설정할 수 있습니다. 공개 배포본의 기본 Google 연결 UI는 로컬 인증 감지를 사용합니다. 로컬 인증에 갱신용 클라이언트 정보가 없으면 Antigravity에서 재인증해야 할 수 있습니다.
