@@ -27,6 +27,14 @@ module.exports = async function verify3D({ application, page, profileDir, output
     await ready();
     await expect(page.locator('.model-error-badge')).toHaveCount(0);
   }
+  report.graphics = await canvas.evaluate((element) => {
+    const context = element.getContext('webgl2');
+    const extension = context?.getExtension('WEBGL_debug_renderer_info');
+    return { vendor: extension ? context.getParameter(extension.UNMASKED_VENDOR_WEBGL) : 'unavailable',
+      renderer: extension ? context.getParameter(extension.UNMASKED_RENDERER_WEBGL) : 'unavailable' };
+  });
+  report.graphics.mode = process.env.DOTDOCK_SMOKE_SOFTWARE_GPU === '1' ? 'forced software (SwiftShader)' : 'default';
+  if (process.env.DOTDOCK_SMOKE_SOFTWARE_GPU === '1') assert.match(report.graphics.renderer, /SwiftShader/i);
   for (const title of zodiacTitles) {
     await page.getByTitle(title, { exact: true }).click();
     await ready();

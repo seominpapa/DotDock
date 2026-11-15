@@ -6,11 +6,11 @@
 
 [최신 릴리스와 설치 파일](https://github.com/seominpapa/DotDock/releases/latest)
 
-| 컴퓨터 | 0.1.2 설치 파일 |
+| 컴퓨터 | 0.1.3 설치 파일 |
 | --- | --- |
-| Mac Apple Silicon (M 시리즈) | [DMG 다운로드](https://github.com/seominpapa/DotDock/releases/download/v0.1.2/DotDock-0.1.2-arm64.dmg) |
-| Mac Intel | [DMG 다운로드](https://github.com/seominpapa/DotDock/releases/download/v0.1.2/DotDock-0.1.2-x64.dmg) |
-| Windows 64비트 | [설치 EXE 다운로드](https://github.com/seominpapa/DotDock/releases/download/v0.1.2/DotDock-Setup-0.1.2-x64.exe) |
+| Mac Apple Silicon (M 시리즈) | [DMG 다운로드](https://github.com/seominpapa/DotDock/releases/download/v0.1.3/DotDock-0.1.3-arm64.dmg) |
+| Mac Intel | [DMG 다운로드](https://github.com/seominpapa/DotDock/releases/download/v0.1.3/DotDock-0.1.3-x64.dmg) |
+| Windows 64비트 | [설치 EXE 다운로드](https://github.com/seominpapa/DotDock/releases/download/v0.1.3/DotDock-Setup-0.1.3-x64.exe) |
 
 Mac은 DMG를 열어 DotDock을 응용 프로그램 폴더로 복사한 뒤 실행합니다. Windows는 Setup EXE를 실행하고 설치 안내를 따릅니다. 설치 파일은 개발자 인증서로 서명·공증하지 않았으므로 운영체제의 보안 경고가 표시될 수 있습니다. Windows ARM 네이티브 설치 파일은 제공하지 않습니다.
 
@@ -20,13 +20,13 @@ Mac은 DMG를 열어 DotDock을 응용 프로그램 폴더로 복사한 뒤 실�
 
 **Windows 10 / 11**
 
-1. `DotDock-Setup-0.1.2-x64.exe`를 다운로드해 실행합니다.
+1. `DotDock-Setup-0.1.3-x64.exe`를 다운로드해 실행합니다.
 2. **Windows의 PC 보호** 경고가 나타나면 **추가 정보 → 실행**을 누릅니다.
 3. 설치 마법사를 완료하면 바탕화면과 시작 메뉴에 바로가기가 생성됩니다.
 
 **macOS**
 
-1. 컴퓨터에 맞는 `DotDock-0.1.2-arm64.dmg` 또는 `DotDock-0.1.2-x64.dmg`를 열고 `DotDock.app`을 **Applications(응용 프로그램)** 폴더로 복사합니다.
+1. 컴퓨터에 맞는 `DotDock-0.1.3-arm64.dmg` 또는 `DotDock-0.1.3-x64.dmg`를 열고 `DotDock.app`을 **Applications(응용 프로그램)** 폴더로 복사합니다.
 2. 실행이 차단되면 **시스템 설정 → 개인정보 보호 및 보안 → 확인 없이 열기**를 선택합니다. 앱을 한 번 실행해 차단 안내를 확인한 뒤 이용하세요.
 3. 계속 차단되는 경우 터미널에서 아래 명령어로 DotDock의 다운로드 격리 속성만 해제한 뒤 다시 실행합니다.
 
@@ -100,6 +100,8 @@ npm run dist:win
 ```
 
 `.github/workflows/release.yml`은 macOS Apple Silicon·Intel과 Windows x64에서 소스 앱과 설치 파일에서 꺼내거나 설치한 앱을 실행 검증합니다. `v<package.json 버전>` 태그를 푸시하면 모든 작업이 성공한 뒤 설치 파일·SHA256SUMS를 GitHub Releases에 게시합니다. 실패 시 Actions의 검사 보고서와 스크린샷을 확인하세요. 실제 사용자 PC의 수동 설치·외부 계정 로그인·다양한 GPU 성능은 별도 검증이 필요합니다.
+
+Intel 맥 CI의 3D 기능 검사는 SwiftShader 소프트웨어 렌더링을 사용합니다. 이 설정은 테스트 실행에만 적용하며 배포 앱의 기본 그래픽 설정을 바꾸지 않습니다. 검사 보고서에 실제 WebGL 렌더러를 기록합니다.
 
 ## 로컬 사용량 파일
 

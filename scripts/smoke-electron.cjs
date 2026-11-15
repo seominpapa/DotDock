@@ -12,6 +12,7 @@ const quotaFile = path.join(profileDir, 'quota.json');
 const outputDir = path.resolve(process.env.DOTDOCK_SMOKE_OUTPUT || 'test-results/electron');
 const report = { version, platform: process.platform, arch: process.arch, checks: [] };
 const rendererErrors = [];
+report.rendererConsole = [];
 let application;
 let page;
 
@@ -21,12 +22,21 @@ async function launch() {
   delete env.ELECTRON_RUN_AS_NODE;
   application = await electron.launch({
     ...(process.env.DOTDOCK_EXECUTABLE ? { executablePath: process.env.DOTDOCK_EXECUTABLE } : {}),
-    args: process.env.DOTDOCK_EXECUTABLE ? [] : [projectDir],
+    args: [
+      ...(process.env.DOTDOCK_SMOKE_SOFTWARE_GPU === '1'
+        ? ['--use-gl=angle', '--use-angle=swiftshader'] : []),
+      ...(process.env.DOTDOCK_EXECUTABLE ? [] : [projectDir])
+    ],
     env,
     timeout: 60_000
   });
   page = await application.firstWindow();
   page.on('pageerror', (error) => rendererErrors.push(error.message));
+  page.on('console', (message) => {
+    if (['error', 'warning'].includes(message.type()) && report.rendererConsole.length < 50) {
+      report.rendererConsole.push(message.text().slice(0, 500));
+    }
+  });
   await page.waitForFunction(() => Boolean(window.dotdock));
 }
 
@@ -243,6 +253,9 @@ async function main() {
   } catch (error) {
     report.status = 'failed';
     report.error = error.stack || String(error);
+    if (page && !page.isClosed()) {
+      report.modelError = await page.locator('.model-error-badge').getAttribute('title', { timeout: 1_000 }).catch(() => null);
+    }
     if (page && !page.isClosed()) {
       await page.screenshot({ path: path.join(outputDir, 'failure.png') }).catch(() => {});
     }
