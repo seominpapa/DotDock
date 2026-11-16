@@ -3,6 +3,9 @@ import type {
   AuthActionResult,
   DotDockState,
   ProviderId,
+  ScheduleAction,
+  ScheduleAlert,
+  ScheduleInput,
   SettingsTabId,
   SyncQuotaResult,
   SystemStats
@@ -23,24 +26,43 @@ import {
   subscribeMainCommands,
   syncLocalQuotaFile,
   syncProviderQuota,
-  updateAlwaysOnTop
+  updateAlwaysOnTop,
+  saveSchedule,
+  deleteSchedule,
+  actOnSchedule,
+  previewAlarm,
+  setAlarmVisible
 } from './services/storage';
 import { CharacterSprite } from './components/CharacterSprite';
 import { HudPopover } from './components/HudPopover';
 import { OnboardingModal } from './components/OnboardingModal';
 import { SettingsModal } from './components/SettingsModal';
+import { ScheduleAlarm } from './components/ScheduleAlarm';
 
 export function App() {
   const [state, setState] = useState<DotDockState | null>(null);
   const [expanded, setExpanded] = useState(false);
   const [viewMode, setViewMode] = useState<'hud' | 'settings'>('hud');
-  const [settingsTab, setSettingsTab] = useState<SettingsTabId>('character');
+  const [alarmPreview, setAlarmPreview] = useState<ScheduleAlert | null>(null);
+  const [alarmStatus, setAlarmStatus] = useState<string | null>(null);
   const [syncStatusMessage, setSyncStatusMessage] = useState<string | null>(null);
   const [authStatusMessage, setAuthStatusMessage] = useState<string | null>(null);
   const [systemStats, setSystemStats] = useState<SystemStats | null>(null);
 
   const showOnboarding = state !== null && !state.onboardingCompleted;
   const isWindowExpanded = showOnboarding || expanded;
+  const visibleAlarm = !showOnboarding && state?.alarmPreferences.character
+    ? alarmPreview || state.scheduleAlerts[0] || null : null;
+
+  useEffect(() => {
+    void setAlarmVisible(Boolean(visibleAlarm));
+  }, [Boolean(visibleAlarm), isWindowExpanded]);
+
+  useEffect(() => {
+    if (!alarmPreview) return;
+    const timer = window.setTimeout(() => setAlarmPreview(null), 8000);
+    return () => window.clearTimeout(timer);
+  }, [alarmPreview]);
 
   useEffect(() => {
     void loadDotDockState().then((loaded) => {
@@ -71,9 +93,13 @@ export function App() {
   }, [isWindowExpanded, showOnboarding, viewMode, refreshSystemStats]);
 
   const updateState = useCallback(async (patch: Partial<DotDockState>) => {
-    setState((prev) => (prev ? { ...prev, ...patch } : prev));
-    const saved = await saveDotDockState(patch);
-    setState(saved);
+    setState((previous) => previous ? { ...previous, ...patch } : previous);
+    try {
+      setState(await saveDotDockState(patch));
+    } catch (error) {
+      setState(await loadDotDockState());
+      throw error;
+    }
   }, []);
 
   useEffect(() => {
@@ -84,11 +110,18 @@ export function App() {
       } else if (cmd.type === 'open-settings') {
         setExpanded(true);
         setViewMode('settings');
-        setSettingsTab('character');
       } else if (cmd.type === 'open-oauth') {
         setExpanded(true);
-        setViewMode('settings');
-        setSettingsTab('ai');
+        setViewMode('hud');
+        void updateState({ activeWidgetId: 'oauth-connect' });
+      } else if (cmd.type === 'open-schedules') {
+        setExpanded(true);
+        setViewMode('hud');
+        void updateState({ activeWidgetId: 'schedule-memo' });
+      } else if (cmd.type === 'alarm-preview' && cmd.payload) {
+        setAlarmPreview(cmd.payload as ScheduleAlert);
+      } else if (cmd.type === 'alarm-status') {
+        setAlarmStatus(String(cmd.payload));
       } else if (cmd.type === 'quota-updated' && cmd.payload) {
         setState(cmd.payload as DotDockState);
         setSyncStatusMessage('~/.dotdock/quota.json 변경 사항을 반영했습니다.');
@@ -96,7 +129,7 @@ export function App() {
         setState(cmd.payload as DotDockState);
       }
     });
-  }, []);
+  }, [updateState]);
 
   const handleSyncLocalQuota = useCallback(
     async (createSampleIfMissing = false): Promise<SyncQuotaResult> => {
@@ -169,8 +202,8 @@ export function App() {
 
   const handleOpenSettingsTab = (tab: SettingsTabId = 'character') => {
     setExpanded(true);
-    setViewMode('settings');
-    setSettingsTab(tab);
+    setViewMode(tab === 'character' ? 'settings' : 'hud');
+    if (tab !== 'character') void updateState({ activeWidgetId: tab === 'ai' ? 'oauth-connect' : 'app-settings' });
   };
 
   const handleCloseWindow = () => {
@@ -200,12 +233,18 @@ export function App() {
     setExpanded(true);
   };
 
+  const handleSaveSchedule = async (entry: ScheduleInput) => { setState(await saveSchedule(entry)); };
+  const handleDeleteSchedule = async (id: string) => { setState(await deleteSchedule(id)); };
+  const handleScheduleAction = async (id: string, action: ScheduleAction) => {
+    setState(await actOnSchedule(id, action));
+  };
+
   if (!state) {
     return null;
   }
 
   return (
-    <div className="app-shell">
+    <div className={`app-shell ${visibleAlarm ? 'has-schedule-alarm' : ''}`}>
       {showOnboarding && (
         <OnboardingModal
           state={state}
@@ -225,20 +264,7 @@ export function App() {
       {!showOnboarding && expanded && viewMode === 'settings' && (
         <SettingsModal
           state={state}
-          activeTab={settingsTab}
-          onChangeTab={setSettingsTab}
           updateState={updateState}
-          startOAuthLogin={handleStartOAuthLogin}
-          detectLocalAuth={handleDetectLocalAuth}
-          syncProviderQuota={handleSyncProviderQuota}
-          saveProviderToken={handleSaveProviderToken}
-          disconnectProvider={handleDisconnectProvider}
-          syncLocalQuota={handleSyncLocalQuota}
-          authStatusMessage={authStatusMessage}
-          syncStatusMessage={syncStatusMessage}
-          onToggleAlwaysOnTop={handleToggleAlwaysOnTop}
-          onResetPosition={handleResetPosition}
-          onReopenOnboarding={handleReopenOnboarding}
           onSwitchToHud={() => setViewMode('hud')}
           onMinimize={handleMinimize}
           onCloseWindow={handleCloseWindow}
@@ -259,11 +285,28 @@ export function App() {
           authStatusMessage={authStatusMessage}
           systemStats={systemStats}
           refreshSystemStats={refreshSystemStats}
+          onToggleAlwaysOnTop={handleToggleAlwaysOnTop}
+          onResetPosition={handleResetPosition}
+          onReopenOnboarding={handleReopenOnboarding}
+          saveSchedule={handleSaveSchedule}
+          deleteSchedule={handleDeleteSchedule}
+          actOnSchedule={handleScheduleAction}
+          previewAlarm={previewAlarm}
           onOpenSettingsTab={handleOpenSettingsTab}
           onMinimize={handleMinimize}
           onCloseWindow={handleCloseWindow}
         />
       )}
+
+      {alarmStatus && expanded && <div className="alarm-status" role="alert">
+        <span>{alarmStatus}</span><button type="button" className="mini-btn" aria-label="알림 안내 닫기"
+          onClick={() => setAlarmStatus(null)}>✕</button>
+      </div>}
+      {visibleAlarm && <ScheduleAlarm key={visibleAlarm.id} alert={visibleAlarm} characterEffect
+        onAction={async (action) => {
+          if (alarmPreview?.id === visibleAlarm.id) { setAlarmPreview(null); return; }
+          await handleScheduleAction(visibleAlarm.scheduleId, action);
+        }} />}
 
       <CharacterSprite
         state={state}

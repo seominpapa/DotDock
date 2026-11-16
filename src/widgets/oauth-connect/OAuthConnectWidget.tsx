@@ -71,7 +71,7 @@ export function OAuthConnectWidget({
     <div className="widget-stack">
       <div className="widget-toolbar">
         <div className="sync-meta">
-          <span className="source-pill">OAuth 인증 관리</span>
+          <span className="source-pill">계정 연결 관리</span>
         </div>
         <div className="toolbar-actions">
           <button

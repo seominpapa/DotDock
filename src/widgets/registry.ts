@@ -2,28 +2,35 @@ import { createElement } from 'react';
 import type { WidgetDefinition } from '../types/dotdock';
 import { AiQuotaWidget } from './ai-quota/AiQuotaWidget';
 import { OAuthConnectWidget } from './oauth-connect/OAuthConnectWidget';
-import { SystemMemoWidget } from './system-memo/SystemMemoWidget';
+import { ScheduleMemoWidget } from './schedule-memo/ScheduleMemoWidget';
+import { AppSettingsWidget } from './app-settings/AppSettingsWidget';
 
 export type { WidgetContext, WidgetDefinition } from '../types/dotdock';
 
 export const WIDGET_REGISTRY: WidgetDefinition[] = [
   {
     id: 'ai-quota',
-    title: '⚡ 종합 현황',
+    title: '현황',
     render: (ctx) => createElement(AiQuotaWidget, ctx)
   },
   {
     id: 'oauth-connect',
-    title: '🔐 OAuth 연동',
+    title: '계정 연결',
     render: (ctx) => createElement(OAuthConnectWidget, ctx)
   },
   {
-    id: 'system-memo',
-    title: '🧩 시스템 · 메모',
-    render: (ctx) => createElement(SystemMemoWidget, ctx)
+    id: 'schedule-memo',
+    title: '일정·메모',
+    render: (ctx) => createElement(ScheduleMemoWidget, ctx)
+  },
+  {
+    id: 'app-settings',
+    title: '앱 설정',
+    render: (ctx) => createElement(AppSettingsWidget, ctx)
   }
 ];
 
 export function getWidgetById(id: string): WidgetDefinition {
-  return WIDGET_REGISTRY.find((w) => w.id === id) ?? WIDGET_REGISTRY[0];
+  const widgetId = id === 'system-memo' ? 'schedule-memo' : id;
+  return WIDGET_REGISTRY.find((w) => w.id === widgetId) ?? WIDGET_REGISTRY[0];
 }

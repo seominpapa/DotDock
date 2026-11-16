@@ -1,9 +1,12 @@
 import type {
   AuthActionResult,
   AppUpdateInfo,
+  AlarmPreferences,
   DotDockState,
   MainCommand,
   ProviderId,
+  ScheduleAction,
+  ScheduleInput,
   SyncQuotaResult,
   SystemStats
 } from '../types/dotdock';
@@ -50,6 +53,9 @@ const FALLBACK_STATE: DotDockState = {
   autoSyncMinutes: 10,
   activeWidgetId: 'ai-quota',
   memo: '• DotDock에 오신 걸 환영해요!\n• 캐릭터를 드래그해 원하는 위치로 옮길 수 있어요.',
+  schedules: [],
+  scheduleAlerts: [],
+  alarmPreferences: { character: true, screenEdge: false, notification: true, sound: false },
   windowPosition: null,
   auth: {
     codex: { connected: false, method: 'none', statusMessage: 'ChatGPT / Codex 미연결' },
@@ -86,6 +92,10 @@ export async function loadDotDockState(): Promise<DotDockState> {
       return {
         ...FALLBACK_STATE,
         ...parsed,
+        schedules: [],
+        scheduleAlerts: [],
+        alarmPreferences: Object.fromEntries(Object.entries(FALLBACK_STATE.alarmPreferences).map(([key, value]) =>
+          [key, typeof parsed.alarmPreferences?.[key] === 'boolean' ? parsed.alarmPreferences[key] : value])) as unknown as AlarmPreferences,
         birthYear: isValidBirthYear(parsed.birthYear) ? parsed.birthYear : null,
         birthDate: parseBirthDate(parsed.birthDate)?.year === parsed.birthYear ? parsed.birthDate : null,
         characterStyle: parsed.characterStyle === '3d' ? '3d' : parsed.characterStyle === 'vector' ? 'vector' : 'pixel',
@@ -107,6 +117,12 @@ export async function saveDotDockState(patch: Partial<DotDockState>): Promise<Do
     return window.dotdock.saveState(patch);
   }
   const current = await loadDotDockState();
+  if (patch.schedules !== undefined || patch.scheduleAlerts !== undefined) {
+    throw new Error('일정은 일정 전용 기능으로 변경해 주세요.');
+  }
+  if (patch.alarmPreferences && Object.values(patch.alarmPreferences).some((value) => typeof value !== 'boolean')) {
+    throw new Error('알림 효과는 켜짐 또는 꺼짐으로 선택해 주세요.');
+  }
   const birth = parseBirthDate(patch.birthDate);
   if (patch.birthDate !== undefined && patch.birthDate !== null && !birth) {
     throw new Error('오늘까지의 올바른 생년월일을 입력해 주세요.');
@@ -124,6 +140,31 @@ export async function saveDotDockState(patch: Partial<DotDockState>): Promise<Do
     // ignore
   }
   return next;
+}
+
+function scheduleBridge() {
+  if (!window.dotdock) throw new Error('일정 알림은 DotDock 데스크톱 앱에서 사용할 수 있습니다.');
+  return window.dotdock;
+}
+
+export async function saveSchedule(entry: ScheduleInput): Promise<DotDockState> {
+  return scheduleBridge().saveSchedule(entry);
+}
+
+export async function deleteSchedule(id: string): Promise<DotDockState> {
+  return scheduleBridge().deleteSchedule(id);
+}
+
+export async function actOnSchedule(id: string, action: ScheduleAction): Promise<DotDockState> {
+  return scheduleBridge().actOnSchedule(id, action);
+}
+
+export async function previewAlarm(): Promise<void> {
+  return scheduleBridge().previewAlarm();
+}
+
+export async function setAlarmVisible(visible: boolean): Promise<void> {
+  await window.dotdock?.setAlarmVisible(visible);
 }
 
 export async function syncLocalQuotaFile(createSampleIfMissing = false): Promise<SyncQuotaResult> {

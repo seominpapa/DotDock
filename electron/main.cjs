@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, Menu, Tray, screen, nativeImage, shell, dialog } = require('electron');
+const { app, BrowserWindow, ipcMain, Menu, Tray, screen, nativeImage, shell, dialog, Notification, powerMonitor } = require('electron');
 const { execFile } = require('node:child_process');
 const path = require('node:path');
 const fs = require('node:fs');
@@ -8,10 +8,14 @@ const { createUpdater } = require('./updates.cjs');
 const { getCollapsedSize } = require('./dock-layout.cjs');
 const { loadBirthIdentity, applyBirthIdentity } = require('./birth-identity.cjs');
 const { registerCharacterModelIpc } = require('./character-models.cjs');
+const schedules = require('./schedules.cjs');
+const { createScheduleRuntime } = require('./schedule-runtime.cjs');
+const { createAlarmEffects } = require('./alarm-effects.cjs');
 
 const EXPANDED_SIZE = { width: 390, height: 600 };
 const VALID_SYNC_MINUTES = [5, 10, 15, 20];
 const SMOKE_TEST = process.env.DOTDOCK_SMOKE_TEST === '1';
+if (process.platform === 'win32') app.setAppUserModelId('com.dotdock.app');
 if (SMOKE_TEST) {
   if (!process.env.DOTDOCK_TEST_USER_DATA || !process.env.DOTDOCK_TEST_QUOTA_FILE) {
     throw new Error('Smoke tests require isolated user data and quota paths.');
@@ -120,6 +124,7 @@ function createDefaultState() {
     autoSyncMinutes: 10,
     activeWidgetId: 'ai-quota',
     memo: '• DotDock에 오신 걸 환영해요!\n• 캐릭터를 드래그해 원하는 위치로 옮길 수 있어요.\n• 클릭하면 AI 사용량과 확장 위젯을 볼 수 있어요.',
+    ...schedules.loadScheduleState({}),
     windowPosition: null,
     auth: createDefaultAuth(),
     quota: JSON.parse(JSON.stringify(DEFAULT_QUOTA))
@@ -133,6 +138,10 @@ let isQuitting = false;
 let preExpandPos = null;
 let appState = null;
 let autoSyncTimer = null;
+let scheduleRuntime = null;
+let alarmEffects = null;
+let alarmVisible = false;
+let alarmPosition = null;
 
 function getStateFilePath() {
   return path.join(app.getPath('userData'), 'dotdock-state.json');
@@ -174,6 +183,7 @@ function loadStateFromDisk() {
       loaded = {
         ...defaults,
         ...raw,
+        ...schedules.loadScheduleState(raw),
         ...loadBirthIdentity(raw),
         characterStyle: ['vector', '3d'].includes(raw.characterStyle) ? raw.characterStyle : 'pixel',
         customModelId: typeof raw.customModelId === 'string' ? raw.customModelId : null,
@@ -231,12 +241,73 @@ function loadStateFromDisk() {
 function saveStateToDisk() {
   if (!appState) return;
   try {
-    const statePath = getStateFilePath();
-    fs.mkdirSync(path.dirname(statePath), { recursive: true });
-    fs.writeFileSync(statePath, JSON.stringify(appState, null, 2), 'utf8');
+    persistStateFile(appState);
   } catch (err) {
     console.error('[DotDock] Failed to save state:', err);
   }
+}
+
+function persistStateFile(next) {
+  const statePath = getStateFilePath();
+  const temporary = `${statePath}.schedule-tmp`;
+  try {
+    fs.mkdirSync(path.dirname(statePath), { recursive: true });
+    fs.writeFileSync(temporary, JSON.stringify(next, null, 2), { encoding: 'utf8', mode: 0o600 });
+    fs.renameSync(temporary, statePath);
+  } catch {
+    try { fs.unlinkSync(temporary); } catch { /* No temporary file to remove. */ }
+    throw new Error('일정을 저장하지 못했습니다. 저장 공간과 폴더 권한을 확인해 주세요.');
+  }
+}
+
+function commitScheduleState(next) {
+  persistStateFile(next);
+  appState = next;
+  alarmEffects?.reconcile(next.scheduleAlerts, next.alarmPreferences);
+  sendCommand('state-updated', appState);
+}
+
+function setAlarmVisible(visible) {
+  if (!mainWindow || mainWindow.isDestroyed() || alarmVisible === visible) return;
+  const current = mainWindow.getBounds();
+  alarmVisible = visible;
+  if (isExpanded) {
+    if (visible) alarmPosition = appState.windowPosition ? { ...appState.windowPosition } : null;
+    if (!visible && alarmPosition && preExpandPos) {
+      preExpandPos = { ...preExpandPos, restorePosition: alarmPosition };
+      alarmPosition = null;
+    }
+    return;
+  }
+  const collapsed = getCollapsedSize(appState);
+  if (visible) alarmPosition = { x: current.x, y: current.y };
+  const size = visible ? { width: 300, height: collapsed.height + 190 } : collapsed;
+  const position = !visible && alarmPosition ? alarmPosition : {
+    x: current.x + current.width - size.width, y: current.y + current.height - size.height
+  };
+  const clamped = clampPositionToDisplay(position.x, position.y, size.width, size.height);
+  mainWindow.setBounds({ ...clamped, ...size });
+  if (!visible) alarmPosition = null;
+}
+
+function openSchedules() {
+  showAndFocusWindow();
+  applyExpandedState(true);
+  sendCommand('open-schedules');
+}
+
+function startScheduleRuntime() {
+  const onError = (error) => sendCommand('alarm-status', typeof error === 'string' ? error : error.message);
+  alarmEffects = createAlarmEffects({ BrowserWindow, Notification, screen, shell,
+    getWindow: () => mainWindow, onOpen: openSchedules, onError, suppressNative: SMOKE_TEST });
+  scheduleRuntime = createScheduleRuntime({ getState: () => appState, commit: commitScheduleState, onError,
+    deliver: (alert) => {
+      alarmEffects.show(alert, appState.alarmPreferences);
+      if (appState.alarmPreferences.character && !mainWindow.isVisible()) mainWindow.showInactive();
+    } });
+  scheduleRuntime.check();
+  powerMonitor.on('resume', () => scheduleRuntime.check());
+  powerMonitor.on('unlock-screen', () => scheduleRuntime.check());
 }
 
 function getDefaultCollapsedPosition() {
@@ -287,11 +358,15 @@ function resetWindowPosition() {
     applyExpandedState(false);
   }
   const pos = getDefaultCollapsedPosition();
+  const collapsed = getCollapsedSize(appState);
+  const size = alarmVisible ? { width: 300, height: collapsed.height + 190 } : collapsed;
+  const position = clampPositionToDisplay(pos.x + collapsed.width - size.width,
+    pos.y + collapsed.height - size.height, size.width, size.height);
   mainWindow.setBounds({
-    x: pos.x,
-    y: pos.y,
-    ...getCollapsedSize(appState)
+    ...position,
+    ...size
   });
+  alarmPosition = alarmVisible ? pos : null;
   appState.windowPosition = pos;
   saveStateToDisk();
   showAndFocusWindow();
@@ -302,7 +377,8 @@ function applyExpandedState(expanded) {
     return { x: 0, y: 0, ...getCollapsedSize(appState) };
   }
   const current = mainWindow.getBounds();
-  const targetSize = expanded ? EXPANDED_SIZE : getCollapsedSize(appState);
+  const collapsed = getCollapsedSize(appState);
+  const targetSize = expanded ? EXPANDED_SIZE : alarmVisible ? { width: 300, height: collapsed.height + 190 } : collapsed;
   if (expanded === isExpanded && current.width === targetSize.width && current.height === targetSize.height) {
     return current;
   }
@@ -311,7 +387,7 @@ function applyExpandedState(expanded) {
   let nextY;
 
   if (expanded) {
-    preExpandPos = { ...current };
+    preExpandPos = { ...current, ...(alarmPosition ? { restorePosition: alarmPosition } : {}) };
     const right = current.x + current.width;
     const bottom = current.y + current.height;
     nextX = right - targetSize.width;
@@ -327,8 +403,12 @@ function applyExpandedState(expanded) {
         Math.abs((current.x + current.width) - (preExpandPos.x + preExpandPos.width)) > 2 ||
         Math.abs((current.y + current.height) - (preExpandPos.y + preExpandPos.height)) > 2;
       if (!movedWhileExpanded) {
-        nextX = preExpandPos.x;
-        nextY = preExpandPos.y;
+        const restore = !alarmVisible && preExpandPos.restorePosition ? preExpandPos.restorePosition : {
+          x: preExpandPos.x + preExpandPos.width - targetSize.width,
+          y: preExpandPos.y + preExpandPos.height - targetSize.height
+        };
+        nextX = restore.x;
+        nextY = restore.y;
       }
       preExpandPos = null;
     }
@@ -343,7 +423,7 @@ function applyExpandedState(expanded) {
     height: targetSize.height
   });
 
-  if (!expanded) {
+  if (!expanded && !alarmVisible) {
     appState.windowPosition = clamped;
     saveStateToDisk();
   }
@@ -488,7 +568,7 @@ function updateTrayMenu() {
     },
     { type: 'separator' },
     {
-      label: 'OAuth 계정 연동...',
+      label: '계정 연결...',
       click: () => {
         showAndFocusWindow();
         sendCommand('open-oauth');
@@ -609,11 +689,17 @@ function registerIpc() {
 
   ipcMain.handle('dotdock:save-state', (_event, patch) => {
     if (!patch || typeof patch !== 'object') return appState;
+    if (patch.schedules !== undefined || patch.scheduleAlerts !== undefined) {
+      throw new Error('일정은 일정 전용 기능으로 변경해 주세요.');
+    }
+    const alarmPreferences = patch.alarmPreferences === undefined ? appState.alarmPreferences
+      : schedules.validatePreferences(patch.alarmPreferences);
     const birthIdentity = applyBirthIdentity(appState, patch);
-    appState = {
+    const next = {
       ...appState,
       ...patch,
       ...birthIdentity,
+      alarmPreferences,
       ...(patch.launchAtLogin !== undefined
         ? { launchAtLogin: Boolean(patch.launchAtLogin) }
         : {}),
@@ -639,7 +725,12 @@ function registerIpc() {
           }
         : appState.quota
     };
-    saveStateToDisk();
+    if (patch.alarmPreferences !== undefined) {
+      commitScheduleState({ ...next, scheduleAlerts: Object.values(alarmPreferences).some(Boolean) ? next.scheduleAlerts : [] });
+    } else {
+      persistStateFile(next);
+      appState = next;
+    }
     if (patch.launchAtLogin !== undefined) {
       applyLoginItemSetting(appState.launchAtLogin);
     }
@@ -653,24 +744,61 @@ function registerIpc() {
     return appState;
   });
 
-  ipcMain.handle('dotdock:oauth-login', (_event, provider) => {
-    return oauth.openOAuthLoginWindow(provider, appState, getOAuthHooks());
+  const assertScheduleSender = (event) => {
+    if (event.sender !== mainWindow?.webContents) throw new Error('허용되지 않은 일정 요청입니다.');
+  };
+  const changeSchedule = (event, change) => {
+    assertScheduleSender(event);
+    commitScheduleState(change());
+    scheduleRuntime.check();
+    return appState;
+  };
+  ipcMain.handle('dotdock:save-schedule', (event, input) =>
+    changeSchedule(event, () => schedules.saveSchedule(appState, input)));
+  ipcMain.handle('dotdock:delete-schedule', (event, id) =>
+    changeSchedule(event, () => schedules.deleteSchedule(appState, id)));
+  ipcMain.handle('dotdock:schedule-action', (event, payload) =>
+    changeSchedule(event, () => schedules.actOnSchedule(appState, payload?.id, payload?.action)));
+  ipcMain.handle('dotdock:set-alarm-visible', (event, visible) => {
+    assertScheduleSender(event);
+    if (typeof visible !== 'boolean') throw new Error('올바른 알림 표시 값이 아닙니다.');
+    setAlarmVisible(visible);
+  });
+  ipcMain.handle('dotdock:preview-alarm', (event) => {
+    assertScheduleSender(event);
+    if (!Object.values(appState.alarmPreferences).some(Boolean)) throw new Error('알림 효과를 하나 이상 선택해 주세요.');
+    const alert = { id: `preview:${Date.now()}`, scheduleId: 'preview', title: '일정 알림 미리보기',
+      startsAt: new Date().toISOString(), deliveredAt: new Date().toISOString(), phase: 'start' };
+    alarmEffects.show(alert, appState.alarmPreferences);
+    if (appState.alarmPreferences.character) {
+      sendCommand('alarm-preview', alert);
+      if (!mainWindow.isVisible()) mainWindow.showInactive();
+    }
   });
 
-  ipcMain.handle('dotdock:detect-local-auth', (_event, provider) => {
-    return oauth.detectLocalAuth(provider, appState, getOAuthHooks());
+  ipcMain.handle('dotdock:oauth-login', async (_event, provider) => {
+    const result = await oauth.openOAuthLoginWindow(provider, appState, getOAuthHooks());
+    return { ...result, state: appState };
   });
 
-  ipcMain.handle('dotdock:sync-provider-quota', (_event, provider) => {
-    return oauth.syncProviderQuota(provider, appState, getOAuthHooks());
+  ipcMain.handle('dotdock:detect-local-auth', async (_event, provider) => {
+    const result = await oauth.detectLocalAuth(provider, appState, getOAuthHooks());
+    return { ...result, state: appState };
   });
 
-  ipcMain.handle('dotdock:save-provider-token', (_event, payload) => {
-    return oauth.saveProviderToken(payload?.provider, payload?.token, appState, getOAuthHooks());
+  ipcMain.handle('dotdock:sync-provider-quota', async (_event, provider) => {
+    const result = await oauth.syncProviderQuota(provider, appState, getOAuthHooks());
+    return { ...result, state: appState };
   });
 
-  ipcMain.handle('dotdock:disconnect-provider', (_event, provider) => {
-    return oauth.disconnectProvider(provider, appState, getOAuthHooks());
+  ipcMain.handle('dotdock:save-provider-token', async (_event, payload) => {
+    const result = await oauth.saveProviderToken(payload?.provider, payload?.token, appState, getOAuthHooks());
+    return { ...result, state: appState };
+  });
+
+  ipcMain.handle('dotdock:disconnect-provider', async (_event, provider) => {
+    const result = await oauth.disconnectProvider(provider, appState, getOAuthHooks());
+    return { ...result, state: appState };
   });
 
   ipcMain.handle('dotdock:sync-local-quota', (_event, options = {}) => {
@@ -719,13 +847,14 @@ function registerIpc() {
     if (!mainWindow || mainWindow.isDestroyed()) return appState.windowPosition;
     const bounds = mainWindow.getBounds();
     const collapsedSize = getCollapsedSize(appState);
-    const collapsedPos = isExpanded
+    const collapsedPos = isExpanded || alarmVisible
       ? {
           x: bounds.x + bounds.width - collapsedSize.width,
           y: bounds.y + bounds.height - collapsedSize.height
         }
       : { x: bounds.x, y: bounds.y };
     appState.windowPosition = collapsedPos;
+    if (alarmVisible) alarmPosition = collapsedPos;
     saveStateToDisk();
     return collapsedPos;
   });
@@ -1064,6 +1193,8 @@ function watchLocalQuotaFile() {
   });
 }
 
+if (app.requestSingleInstanceLock()) {
+app.on('second-instance', showAndFocusWindow);
 app.whenReady().then(async () => {
   if (process.platform === 'darwin' && app.dock) {
     const ciIconPath = path.join(__dirname, 'app-icon.png');
@@ -1080,6 +1211,7 @@ app.whenReady().then(async () => {
   registerIpc();
   createWindow();
   createTray();
+  mainWindow.webContents.once('did-finish-load', startScheduleRuntime);
   if (!SMOKE_TEST) {
     watchLocalQuotaFile();
     void oauth.detectLocalAuth(undefined, appState, getOAuthHooks());
@@ -1093,9 +1225,14 @@ app.whenReady().then(async () => {
     showAndFocusWindow();
   });
 });
+} else {
+  app.quit();
+}
 
 app.on('before-quit', () => {
   isQuitting = true;
+  scheduleRuntime?.stop();
+  alarmEffects?.close();
   if (autoSyncTimer) {
     clearInterval(autoSyncTimer);
     autoSyncTimer = null;

@@ -88,9 +88,48 @@ export interface DotDockState {
   autoSyncMinutes: AutoSyncMinutes;
   activeWidgetId: string;
   memo: string;
+  schedules: ScheduleEntry[];
+  scheduleAlerts: ScheduleAlert[];
+  alarmPreferences: AlarmPreferences;
   windowPosition: { x: number; y: number } | null;
   auth: AuthStateMap;
   quota: AiQuotaState;
+}
+
+export interface AlarmPreferences {
+  character: boolean;
+  screenEdge: boolean;
+  notification: boolean;
+  sound: boolean;
+}
+
+export interface ScheduleEntry {
+  id: string;
+  title: string;
+  startsAt: string;
+  reminderMinutes: 0 | 5 | 10 | 15 | 30;
+  completed: boolean;
+  reminderSentAt: string | null;
+  startSentAt: string | null;
+  snoozedUntil: string | null;
+}
+
+export interface ScheduleInput {
+  id?: string;
+  title: string;
+  startsAt: string;
+  reminderMinutes: number;
+}
+
+export type ScheduleAction = 'complete' | 'reopen' | 'dismiss' | 'snooze';
+
+export interface ScheduleAlert {
+  id: string;
+  scheduleId: string;
+  title: string;
+  startsAt: string;
+  phase: 'reminder' | 'start' | 'snooze';
+  deliveredAt: string;
 }
 
 export interface SystemStats {
@@ -135,7 +174,7 @@ export interface InstallUpdateResult {
 }
 
 export interface MainCommand {
-  type: 'toggle-hud' | 'open-settings' | 'open-oauth' | 'quota-updated' | 'state-updated' | 'window-visibility';
+  type: 'toggle-hud' | 'open-settings' | 'open-oauth' | 'open-schedules' | 'alarm-preview' | 'alarm-status' | 'quota-updated' | 'state-updated' | 'window-visibility';
   payload?: unknown;
 }
 
@@ -155,6 +194,14 @@ export interface WidgetContext {
   systemStats: SystemStats | null;
   refreshSystemStats: () => Promise<void>;
   onOpenSettingsTab?: (tab: SettingsTabId) => void;
+  onToggleAlwaysOnTop?: (flag: boolean) => Promise<void>;
+  onResetPosition?: () => Promise<void>;
+  onReopenOnboarding?: () => void;
+  onMinimize?: () => void;
+  saveSchedule?: (entry: ScheduleInput) => Promise<void>;
+  deleteSchedule?: (id: string) => Promise<void>;
+  actOnSchedule?: (id: string, action: ScheduleAction) => Promise<void>;
+  previewAlarm?: () => Promise<void>;
 }
 
 export interface WidgetDefinition {
@@ -165,6 +212,11 @@ export interface WidgetDefinition {
 }
 
 export interface DotDockBridge extends CharacterModelBridge {
+  saveSchedule: (entry: ScheduleInput) => Promise<DotDockState>;
+  deleteSchedule: (id: string) => Promise<DotDockState>;
+  actOnSchedule: (id: string, action: ScheduleAction) => Promise<DotDockState>;
+  previewAlarm: () => Promise<void>;
+  setAlarmVisible: (visible: boolean) => Promise<void>;
   getUpdateInfo: () => Promise<AppUpdateInfo>;
   checkForUpdates: () => Promise<AppUpdateInfo>;
   installUpdate: () => Promise<InstallUpdateResult>;

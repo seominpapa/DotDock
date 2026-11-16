@@ -1,6 +1,11 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('dotdock', {
+  saveSchedule: (entry) => ipcRenderer.invoke('dotdock:save-schedule', entry),
+  deleteSchedule: (id) => ipcRenderer.invoke('dotdock:delete-schedule', id),
+  actOnSchedule: (id, action) => ipcRenderer.invoke('dotdock:schedule-action', { id, action }),
+  previewAlarm: () => ipcRenderer.invoke('dotdock:preview-alarm'),
+  setAlarmVisible: (visible) => ipcRenderer.invoke('dotdock:set-alarm-visible', visible),
   importCharacterModel: () => ipcRenderer.invoke('dotdock:import-character-model'),
   getCharacterModel: (id) => ipcRenderer.invoke('dotdock:get-character-model', id),
   getUpdateInfo: () => ipcRenderer.invoke('dotdock:get-update-info'),

@@ -5,6 +5,7 @@ const path = require('node:path');
 const { _electron: electron, expect } = require('@playwright/test');
 const { version } = require('../package.json');
 const verify3D = require('./smoke-3d.cjs');
+const verifySchedules = require('./smoke-schedules.cjs');
 
 const projectDir = path.resolve(__dirname, '..');
 const profileDir = fs.mkdtempSync(path.join(os.tmpdir(), 'dotdock-smoke-'));
@@ -27,7 +28,12 @@ async function launch() {
     env,
     timeout: 60_000
   });
-  report.sqliteRuntime = await application.evaluate(() => {
+  report.sqliteRuntime = await application.evaluate(({ BrowserWindow }) => {
+    const setIgnoreMouseEvents = BrowserWindow.prototype.setIgnoreMouseEvents;
+    BrowserWindow.prototype.setIgnoreMouseEvents = function (ignore, ...options) {
+      this.__dotdockIgnoreMouseEvents = ignore;
+      return Reflect.apply(setIgnoreMouseEvents, this, [ignore, ...options]);
+    };
     const { DatabaseSync } = process.getBuiltinModule('node:sqlite');
     const database = new DatabaseSync(':memory:');
     try {
@@ -160,8 +166,8 @@ async function verifyFirstRun() {
   report.systemStats = stats;
   report.checks.push('native CPU, GPU and memory response shape');
 
-  await page.getByRole('button', { name: '메모', exact: true }).click();
-  await page.getByPlaceholder('여기에 짧은 할 일이나 메모를 적어두세요...').fill('DotDock native smoke memo');
+  await page.getByRole('button', { name: '일정·메모', exact: true }).click();
+  await page.getByLabel('빠른 메모', { exact: true }).fill('DotDock native smoke memo');
   await expect.poll(() => page.evaluate(async () => (await window.dotdock.getState()).memo))
     .toBe('DotDock native smoke memo');
   await page.getByTitle('캐릭터 및 통합 설정 열기', { exact: true }).click();
@@ -207,35 +213,36 @@ async function verifyFirstRun() {
   report.checks.push('no observed HTTP fetches or model cache before selecting 3D; production downloader remains enabled');
   await verify3D({ application, page, profileDir, outputDir, report });
   report.modelDownloadRequests = await application.evaluate(() => globalThis.__dotdockNetworkRequests);
-  await page.getByRole('button', { name: '🖥️ 시스템 · 창', exact: true }).click();
+  await page.getByRole('button', { name: '← 현황판', exact: true }).click();
+  await page.getByRole('button', { name: '앱 설정', exact: true }).click();
   await expect(page.getByRole('button', { name: /업데이트 확인/ })).toBeVisible();
-  await expect(page.locator('.settings-body')).toContainText(version);
+  await expect(page.locator('.hud-body')).toContainText(version);
   assert.equal(await application.evaluate(({ app }) => app.getVersion()), version);
   await page.screenshot({ path: path.join(outputDir, 'settings.png') });
   report.checks.push('memo save, settings version and update action');
 
-  await page.getByRole('button', { name: '⚡ AI 쿼터 · 인증', exact: true }).click();
-  await checkGeminiAction(geminiCard());
-  await page.getByRole('button', { name: '← 현황판', exact: true }).click();
-  await page.getByRole('button', { name: '🔐 OAuth 연동', exact: true }).click();
-  await checkGeminiAction(geminiCard());
-  await page.getByRole('button', { name: '⚡ 종합 현황', exact: true }).click();
+  await page.getByRole('button', { name: '현황', exact: true }).click();
+  await geminiCard().getByRole('button', { name: '계정 연결', exact: true }).click();
+  await expect(page.locator('.source-pill')).toHaveText('계정 연결 관리');
   await checkGeminiAction(geminiCard());
   const authCalls = await application.evaluate(() => globalThis.__dotdockAuthCalls);
-  assert.deepEqual(authCalls, Array.from({ length: 4 }, () => ({
+  assert.deepEqual(authCalls, Array.from({ length: 2 }, () => ({
     channel: 'dotdock:detect-local-auth', provider: 'gemini'
   })));
-  report.checks.push('Gemini uses local auth detection on four screens without opening OAuth');
+  report.checks.push('Gemini local authentication remains on onboarding and account screen; overview navigates to account screen');
 
   const connectedState = await page.evaluate(() => window.dotdock.getState());
   connectedState.auth.gemini = { connected: true, method: 'oauth-session', connectionSource: 'local-api',
     accountLabel: 'synthetic@example.invalid', lastSyncedAt: new Date().toISOString(),
     statusMessage: 'Antigravity 로컬 서비스에서 실시간 사용량을 확인했습니다.' };
+  await page.evaluate((auth) => window.dotdock.saveState({ auth }), connectedState.auth);
   await application.evaluate(({ ipcMain }, fixtureState) => {
     ipcMain.removeHandler('dotdock:detect-local-auth');
     ipcMain.handle('dotdock:detect-local-auth', () => ({ ok: true, message: '격리된 연결 성공', state: fixtureState }));
   }, connectedState);
   await geminiCard().getByRole('button', { name: '로컬 인증 감지', exact: true }).click();
+  await expect(geminiCard().locator('.auth-badge')).toHaveText('● OAuth 연동');
+  await page.getByRole('button', { name: '현황', exact: true }).click();
   await expect(geminiCard().locator('.header-conn-pill')).toHaveText('● OAuth 연동');
   await expect(geminiCard().locator('.header-conn-pill')).toHaveAttribute('title', /로컬 서비스/);
   report.checks.push('successful Antigravity detection shows OAuth badge and the connection source tooltip');
@@ -264,6 +271,7 @@ async function verifyFirstRun() {
   assert.equal(quota.state.quota.codex.weekly.used, 77);
   assert.equal(quota.state.quota.source, 'local-file');
   report.checks.push('isolated local quota JSON import');
+  await verifySchedules({ application, page, outputDir, report });
 }
 
 async function verifyRestart() {
@@ -285,6 +293,7 @@ async function verifyRestart() {
   assert.deepEqual(state.windowPosition, report.savedPosition);
   assert.deepEqual(rendererErrors, []);
   report.checks.push('restart restores onboarding, character, memo, selected quotas, quota data and position');
+  await verifySchedules.verifyRestart({ application, page, report });
   await page.evaluate(() => window.dotdock.saveState({ characterStyle: '3d' }));
   await application.close();
   application = null;

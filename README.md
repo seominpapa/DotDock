@@ -6,11 +6,11 @@
 
 [최신 릴리스와 설치 파일](https://github.com/seominpapa/DotDock/releases/latest)
 
-| 컴퓨터 | 0.1.8 설치 파일 |
+| 컴퓨터 | 0.1.10 설치 파일 |
 | --- | --- |
-| Mac Apple Silicon (M 시리즈) | [DMG 다운로드](https://github.com/seominpapa/DotDock/releases/download/v0.1.8/DotDock-0.1.8-arm64.dmg) |
-| Mac Intel | [DMG 다운로드](https://github.com/seominpapa/DotDock/releases/download/v0.1.8/DotDock-0.1.8-x64.dmg) |
-| Windows 64비트 | [설치 EXE 다운로드](https://github.com/seominpapa/DotDock/releases/download/v0.1.8/DotDock-Setup-0.1.8-x64.exe) |
+| Mac Apple Silicon (M 시리즈) | [DMG 다운로드](https://github.com/seominpapa/DotDock/releases/download/v0.1.10/DotDock-0.1.10-arm64.dmg) |
+| Mac Intel | [DMG 다운로드](https://github.com/seominpapa/DotDock/releases/download/v0.1.10/DotDock-0.1.10-x64.dmg) |
+| Windows 64비트 | [설치 EXE 다운로드](https://github.com/seominpapa/DotDock/releases/download/v0.1.10/DotDock-Setup-0.1.10-x64.exe) |
 
 Mac은 DMG를 열어 DotDock을 응용 프로그램 폴더로 복사한 뒤 실행합니다. Windows는 Setup EXE를 실행하고 설치 안내를 따릅니다. 설치 파일은 개발자 인증서로 서명·공증하지 않았으므로 운영체제의 보안 경고가 표시될 수 있습니다. Windows ARM 네이티브 설치 파일은 제공하지 않습니다.
 
@@ -20,13 +20,13 @@ Mac은 DMG를 열어 DotDock을 응용 프로그램 폴더로 복사한 뒤 실�
 
 **Windows 10 / 11**
 
-1. `DotDock-Setup-0.1.8-x64.exe`를 다운로드해 실행합니다.
+1. `DotDock-Setup-0.1.10-x64.exe`를 다운로드해 실행합니다.
 2. **Windows의 PC 보호** 경고가 나타나면 **추가 정보 → 실행**을 누릅니다.
 3. 설치 마법사를 완료하면 바탕화면과 시작 메뉴에 바로가기가 생성됩니다.
 
 **macOS**
 
-1. 컴퓨터에 맞는 `DotDock-0.1.8-arm64.dmg` 또는 `DotDock-0.1.8-x64.dmg`를 열고 `DotDock.app`을 **Applications(응용 프로그램)** 폴더로 복사합니다.
+1. 컴퓨터에 맞는 `DotDock-0.1.10-arm64.dmg` 또는 `DotDock-0.1.10-x64.dmg`를 열고 `DotDock.app`을 **Applications(응용 프로그램)** 폴더로 복사합니다.
 2. 실행이 차단되면 **시스템 설정 → 개인정보 보호 및 보안 → 확인 없이 열기**를 선택합니다. 앱을 한 번 실행해 차단 안내를 확인한 뒤 이용하세요.
 3. 계속 차단되는 경우 터미널에서 아래 명령어로 DotDock의 다운로드 격리 속성만 해제한 뒤 다시 실행합니다.
 
@@ -43,8 +43,22 @@ xattr -dr com.apple.quarantine /Applications/DotDock.app
 - 생년으로 띠 자동 선택, 직접 캐릭터 선택, 사용자 PNG/GIF/WebP 이미지. 사용자 이미지 품질은 원본 해상도에 따라 달라집니다.
 - Codex·Claude·Antigravity/Gemini 사용량 표시. 여러 체크박스를 선택하면 캐릭터 아래에 선택한 모든 항목의 잔여율과 막대를 표시합니다.
 - 투명 창, 드래그 이동·위치 저장, 항상 위 표시, 트레이 최소화, 로그인 시 실행.
-- 5·10·15·20분 AI 사용량 동기화, 로컬 JSON 연동, CPU·GPU·RAM 현황, 메모.
-- 설정 → **시스템 · 창**에서 현재 버전과 업데이트 확인. 시작 시 새 버전이 있을 때 다운로드 여부를 묻는 알림(설정에서 끌 수 있음).
+- 현황판의 **현황 / 계정 연결 / 일정·메모 / 앱 설정** 메뉴. AI 사용량과 PC 상태(CPU·GPU·RAM)는 현황에서, 로그인과 인증은 계정 연결에서 관리합니다. 캐릭터 설정에는 생일·그림 스타일·크기만 표시합니다.
+- 5·10·15·20분 AI 사용량 동기화, 로컬 JSON 연동, 일정·메모.
+- **앱 설정**에서 자동 실행·항상 위 표시·동기화 주기·현재 버전·업데이트 확인. 시작 시 새 버전이 있을 때 다운로드 여부를 묻는 알림(설정에서 끌 수 있음).
+
+### 일정 및 선택형 알림 효과
+
+**일정·메모**에서 날짜·시간·제목을 입력해 일정을 추가하고 수정·삭제·완료할 수 있습니다. 정시에만 알리거나, 5·10·15·30분 전과 정시에 알리도록 선택합니다. 알림의 **완료 / 5분 뒤 다시 / 닫기**로 처리합니다. 닫기는 해당 알림만 닫으며, 사전 알림을 닫아도 정시 알림은 유지됩니다.
+
+알림 효과는 체크박스로 개별 선택하며 **선택한 효과 미리보기**로 확인합니다.
+
+- **캐릭터 빛 효과·말풍선:** 기본 켜짐. 캐릭터 주변의 짧은 빛 효과와 일정 내용을 표시합니다.
+- **화면 테두리 효과:** 기본 꺼짐. 캐릭터가 있는 모니터 가장자리에 약 3초간 빛을 표시합니다. 다른 창의 포커스나 마우스 입력을 가져가지 않습니다.
+- **시스템 알림:** 기본 켜짐. macOS·Windows의 알림을 사용하며 OS 알림 권한·집중 모드·비서명 앱 제한의 영향을 받을 수 있습니다.
+- **알림 소리:** 기본 꺼짐. OS 기본 알림음을 사용하며 시스템 음량·음소거 설정의 영향을 받습니다.
+
+모든 효과를 끄면 팝업·테두리·시스템 알림·소리를 보내지 않습니다. 일정과 효과 선택은 이 컴퓨터의 앱 설정에 저장하며 외부 캘린더와 동기화하지 않습니다. 절전 복귀나 재실행 시 놓친 일정은 한 번 확인하고, 이미 처리한 알림은 다시 보내지 않습니다. 여러 일정이 동시에 도래하면 말풍선은 순서대로 처리합니다. **DotDock이 실행 중이어야 하며 트레이에 숨겨도 동작하지만, 완전히 종료하거나 컴퓨터가 꺼진 동안에는 알리지 못합니다.** 웹 미리보기에서는 일정 알림을 실행하지 않습니다.
 
 ### 나이는 80%만! (Joke)
 
@@ -78,7 +92,7 @@ GitHub의 최신 정식 릴리스를 조회하고 현재 OS·CPU에 맞는 설�
 
 **3D를 선택하면 해당 캐릭터의 모델을 GitHub에서 자동 다운로드**합니다. 파일 크기와 SHA-256을 확인해 로컬에 캐시하며, 다시 선택하면 캐시를 사용합니다. 인터넷에 연결되지 않거나 다운로드에 실패하면 앱에 포함된 기본 모델로 표시합니다. 별도 ZIP을 설치할 필요는 없습니다.
 
-12종을 파일로 받고 싶다면 [3D 모델 ZIP 다운로드 — 0.1.8](https://github.com/seominpapa/DotDock/releases/download/v0.1.8/DotDock-3D-Models-0.1.8.zip)를 이용하세요. [각 GLB와 검증용 매니페스트](https://github.com/seominpapa/DotDock/tree/v0.1.8/public/models)도 공개되어 있습니다. ZIP에는 `models/` 아래 12개 GLB, 사용 안내, 파일별 SHA-256 목록과 버전이 고정된 매니페스트가 들어 있습니다. 압축을 푼 GLB는 **GLB 가져오기**로 직접 선택할 수 있습니다.
+12종을 파일로 받고 싶다면 [3D 모델 ZIP 다운로드 — 0.1.10](https://github.com/seominpapa/DotDock/releases/download/v0.1.10/DotDock-3D-Models-0.1.10.zip)를 이용하세요. [각 GLB와 검증용 매니페스트](https://github.com/seominpapa/DotDock/tree/v0.1.10/public/models)도 공개되어 있습니다. ZIP에는 `models/` 아래 12개 GLB, 사용 안내, 파일별 SHA-256 목록과 버전이 고정된 매니페스트가 들어 있습니다. 압축을 푼 GLB는 **GLB 가져오기**로 직접 선택할 수 있습니다.
 
 3D를 선택한 경우에만 렌더러와 선택한 모델 하나를 불러옵니다. 회전·크기 변경 등 화면 변화가 있을 때만 다시 그리고, 숨김·최소화 시 렌더링을 멈추며 2D로 전환하면 GPU 자원을 해제합니다. 3D를 선택하면 추가 GPU 메모리를 사용하며 장비별 사용량은 다를 수 있습니다.
 

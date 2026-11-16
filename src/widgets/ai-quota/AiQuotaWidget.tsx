@@ -10,7 +10,7 @@ interface GaugeRowProps {
   onPinToDock: () => void;
 }
 
-type StatusFilter = 'all' | 'llm' | 'system' | 'memo';
+type StatusFilter = 'all' | 'llm' | 'system';
 
 function getGaugeTone(percent: number, defaultAccent: string): string {
   if (percent >= 85) return '#fb7185';
@@ -62,8 +62,6 @@ export function AiQuotaWidget({
   state,
   updateState,
   syncStatusMessage,
-  startOAuthLogin,
-  detectLocalAuth,
   syncProviderQuota,
   authStatusMessage,
   systemStats,
@@ -71,7 +69,6 @@ export function AiQuotaWidget({
   onOpenSettingsTab
 }: WidgetContext) {
   const [syncing, setSyncing] = useState(false);
-  const [loggingIn, setLoggingIn] = useState<ProviderId | null>(null);
   const [filter, setFilter] = useState<StatusFilter>('all');
   const { quota } = state;
 
@@ -86,19 +83,6 @@ export function AiQuotaWidget({
     }
   };
 
-  const handleConnect = async (provider: ProviderId) => {
-    setLoggingIn(provider);
-    try {
-      if (provider === 'gemini') {
-        await detectLocalAuth(provider);
-      } else {
-        await startOAuthLogin(provider);
-      }
-    } finally {
-      setLoggingIn(null);
-    }
-  };
-
   const renderConnectionBadge = (provider: ProviderId) => {
     const info = state.auth?.[provider];
     if (info?.connected) {
@@ -106,7 +90,7 @@ export function AiQuotaWidget({
         <button
           type="button"
           className="header-conn-pill is-connected"
-          title={info.statusMessage || '연결됨 — 클릭 시 인증 설정으로 이동'}
+          title={info.statusMessage || '연결됨 — 클릭 시 계정 연결로 이동'}
           onClick={() => onOpenSettingsTab?.('ai')}
         >
           {provider === 'gemini' ? '● OAuth 연동' : '● 연결됨'}
@@ -117,7 +101,7 @@ export function AiQuotaWidget({
       <button
         type="button"
         className="header-conn-pill"
-        title="인증 설정 열기"
+        title="계정 연결 열기"
         onClick={() => onOpenSettingsTab?.('ai')}
       >
         미연결
@@ -128,19 +112,12 @@ export function AiQuotaWidget({
   const renderDisconnectedAction = (provider: ProviderId) => {
     const info = state.auth?.[provider];
     if (info?.connected) return null;
-    const isBusy = loggingIn === provider;
     return (
       <div className="sync-banner" style={{ marginTop: 4 }}>
         <span>{info?.statusMessage || '실시간 사용량을 보려면 계정을 연결해 주세요.'}</span>
-        <button
-          type="button"
-          className="mini-btn is-accent"
-          disabled={loggingIn !== null}
-          onClick={() => void handleConnect(provider)}
-        >
-          {isBusy
-            ? provider === 'gemini' ? '로컬 인증 확인 중…' : '브라우저 인증 중...'
-            : provider === 'gemini' ? '로컬 인증 감지' : '🌐 웹 로그인'}
+        <button type="button" className="mini-btn is-accent"
+          onClick={() => onOpenSettingsTab?.('ai')}>
+          계정 연결
         </button>
       </div>
     );
@@ -166,7 +143,6 @@ export function AiQuotaWidget({
 
   const showLlm = filter === 'all' || filter === 'llm';
   const showSystem = (filter === 'all' && state.showSystemWidget) || filter === 'system';
-  const showMemo = filter === 'memo';
 
   const selectedDockMetricIds = getSelectedDockMetricIds(state);
 
@@ -267,10 +243,10 @@ export function AiQuotaWidget({
           <button
             type="button"
             className="mini-btn"
-            title="LLM OAuth 인증 및 표시 설정 열기"
+            title="계정 연결 열기"
             onClick={() => onOpenSettingsTab?.('ai')}
           >
-            ⚙ 인증·설정
+            계정 연결
           </button>
         </div>
       </div>
@@ -280,9 +256,8 @@ export function AiQuotaWidget({
         {(
           [
             ['all', '전체'],
-            ['llm', 'LLM 쿼터'],
-            ['system', 'CPU·GPU·RAM'],
-            ['memo', '메모']
+            ['llm', 'AI 사용량'],
+            ['system', 'PC 상태']
           ] as Array<[StatusFilter, string]>
         ).map(([id, label]) => (
           <button
@@ -295,6 +270,32 @@ export function AiQuotaWidget({
           </button>
         ))}
       </div>
+
+      {showLlm && (
+        <section className="provider-card" aria-label="AI 현황 표시 선택">
+          <div className="dock-metric-pick-title">현황에 표시할 AI</div>
+          <div className="dock-metric-pick-items">
+            {([
+              ['codex', 'ChatGPT · Codex'],
+              ['claude', 'Claude'],
+              ['gemini', 'Antigravity · Gemini']
+            ] as const).map(([provider, label]) => {
+              const enabled = enabledProviders.includes(provider);
+              return (
+                <label key={provider} className="llm-check-label">
+                  <input type="checkbox" aria-label={`${label} 현황 표시`}
+                    checked={enabled} disabled={enabled && enabledProviders.length === 1}
+                    onChange={() => void updateState({ enabledProviders: enabled
+                      ? enabledProviders.filter((id) => id !== provider)
+                      : [...enabledProviders, provider] })} />
+                  <span>{label}</span>
+                </label>
+              );
+            })}
+          </div>
+          <div className="quota-reset-text">사용량 항목의 체크박스를 선택하면 캐릭터 아래에도 표시합니다.</div>
+        </section>
+      )}
 
       {(syncStatusMessage || authStatusMessage) && (
         <div className="sync-banner">
@@ -380,7 +381,7 @@ export function AiQuotaWidget({
         <section className="provider-card">
           <div className="provider-header">
             <span className="provider-dot" style={{ backgroundColor: '#22d3ee' }} />
-            <strong className="provider-name">시스템 부하 (CPU · GPU · RAM)</strong>
+            <strong className="provider-name">PC 상태 (CPU · GPU · RAM)</strong>
             <button
               type="button"
               className="mini-btn"
@@ -479,24 +480,6 @@ export function AiQuotaWidget({
           ) : (
             <div className="quota-reset-text">CPU · GPU · RAM 정보를 불러오는 중...</div>
           )}
-        </section>
-      )}
-
-      {/* Quick Memo when filtered to memo */}
-      {showMemo && (
-        <section className="provider-card">
-          <div className="provider-header">
-            <span className="provider-dot" style={{ backgroundColor: '#f472b6' }} />
-            <strong className="provider-name">빠른 데스크탑 메모</strong>
-            <span className="provider-sub">자동 저장</span>
-          </div>
-          <textarea
-            className="memo-textarea"
-            value={state.memo}
-            onChange={(e) => void updateState({ memo: e.target.value })}
-            rows={5}
-            placeholder="여기에 짧은 할 일이나 메모를 적어두세요..."
-          />
         </section>
       )}
     </div>

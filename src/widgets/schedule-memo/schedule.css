@@ -1,0 +1,28 @@
+.schedule-form, .schedule-field { display: flex; flex-direction: column; gap: 5px; }
+.schedule-form { gap: 9px; }
+.schedule-field { min-width: 0; font-size: 11px; color: var(--text-muted); }
+.schedule-field input, .schedule-field select {
+  width: 100%; min-width: 0; box-sizing: border-box; border: 1px solid rgba(148, 163, 184, .35);
+  border-radius: 6px; padding: 7px 6px; color: var(--text-main); background: #202438;
+  font: inherit; color-scheme: dark;
+}
+.schedule-field input:focus-visible, .schedule-field select:focus-visible,
+.schedule-widget input[type=checkbox]:focus-visible { outline: 2px solid #a5b4fc; outline-offset: 2px; }
+.schedule-time-row { display: grid; grid-template-columns: 1.3fr 1fr; gap: 8px; }
+.schedule-submit-row { display: flex; align-items: flex-end; justify-content: space-between; gap: 8px; }
+.schedule-today { margin-left: auto; }
+.schedule-list { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 9px; }
+.schedule-item { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+.schedule-complete-label { display: flex; align-items: flex-start; min-width: 0; gap: 7px; cursor: pointer; }
+.schedule-complete-label input { margin-top: 3px; }
+.schedule-item-copy { display: grid; min-width: 0; gap: 3px; font-size: 11px; }
+.schedule-item-copy time { color: #a5b4fc; font-variant-numeric: tabular-nums; }
+.schedule-item-title { overflow-wrap: anywhere; color: var(--text-main); }
+.schedule-item-copy small { color: var(--text-muted); font-size: 10px; }
+.schedule-item.is-complete .schedule-item-title { text-decoration: line-through; color: var(--text-muted); }
+.schedule-effect-option { display: flex; align-items: flex-start; gap: 7px; cursor: pointer; font-size: 11px; }
+.schedule-effect-option input { margin-top: 2px; }
+.schedule-effect-option span { display: flex; flex-direction: column; gap: 3px; }
+.schedule-effect-option small { font-size: 10px; color: var(--text-muted); }
+.schedule-error { padding: 7px 9px; border: 1px solid #fb7185; border-radius: 7px; color: #fecdd3; background: #3b2130; font-size: 11px; overflow-wrap: anywhere; }
+.schedule-note { margin: 0; line-height: 1.6; }

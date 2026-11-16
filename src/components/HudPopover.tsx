@@ -1,28 +1,9 @@
-import type {
-  AuthActionResult,
-  DotDockState,
-  ProviderId,
-  SettingsTabId,
-  SyncQuotaResult,
-  SystemStats
-} from '../types/dotdock';
+import type { SettingsTabId, WidgetContext } from '../types/dotdock';
 import { getZodiacById, getZodiacPreview } from '../services/zodiac';
 import { WIDGET_REGISTRY, getWidgetById } from '../widgets/registry';
 import { formatCompanionLabel } from '../services/age';
 
-interface HudPopoverProps {
-  state: DotDockState;
-  updateState: (patch: Partial<DotDockState>) => Promise<void>;
-  syncLocalQuota: (createSampleIfMissing?: boolean) => Promise<SyncQuotaResult>;
-  syncStatusMessage: string | null;
-  startOAuthLogin: (provider: ProviderId) => Promise<AuthActionResult>;
-  detectLocalAuth: (provider?: ProviderId) => Promise<AuthActionResult>;
-  syncProviderQuota: (provider?: ProviderId) => Promise<AuthActionResult>;
-  saveProviderToken: (provider: ProviderId, token: string) => Promise<AuthActionResult>;
-  disconnectProvider: (provider: ProviderId) => Promise<AuthActionResult>;
-  authStatusMessage: string | null;
-  systemStats: SystemStats | null;
-  refreshSystemStats: () => Promise<void>;
+interface HudPopoverProps extends WidgetContext {
   onOpenSettingsTab: (tab?: SettingsTabId) => void;
   onMinimize: () => void;
   onCloseWindow: () => void;
@@ -43,7 +24,9 @@ export function HudPopover({
   refreshSystemStats,
   onOpenSettingsTab,
   onMinimize,
-  onCloseWindow
+  onCloseWindow,
+  onToggleAlwaysOnTop, onResetPosition, onReopenOnboarding,
+  saveSchedule, deleteSchedule, actOnSchedule, previewAlarm
 }: HudPopoverProps) {
   const zodiac = getZodiacById(state.selectedZodiacId);
   const activeWidget = getWidgetById(state.activeWidgetId);
@@ -128,7 +111,9 @@ export function HudPopover({
           authStatusMessage,
           systemStats,
           refreshSystemStats,
-          onOpenSettingsTab
+          onOpenSettingsTab,
+          onToggleAlwaysOnTop, onResetPosition, onReopenOnboarding, onMinimize,
+          saveSchedule, deleteSchedule, actOnSchedule, previewAlarm
         })}
       </main>
     </div>

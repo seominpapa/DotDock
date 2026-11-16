@@ -37,6 +37,12 @@ body,
   padding: 4px 6px 6px;
 }
 
+.has-schedule-alarm .sprite-stage { animation: character-alarm-glow 1.5s ease-in-out 2; }
+.alarm-status { padding: 6px; border-radius: 8px; background: #29213b; color: #fda4af;
+  font-size: 11px; display: flex; gap: 6px; align-items: center; flex-shrink: 0; }
+@keyframes character-alarm-glow { 50% { filter: drop-shadow(0 0 10px #a5b4fc); } }
+@media (prefers-reduced-motion: reduce) { .has-schedule-alarm .sprite-stage { animation: none; } }
+
 /* ---------- HUD Speech Bubble Popover ---------- */
 
 .hud-popover {
