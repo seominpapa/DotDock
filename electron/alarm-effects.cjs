@@ -18,6 +18,8 @@ function createAlarmEffects({ BrowserWindow, Notification, screen, shell,
     const win = new BrowserWindow({ ...bounds, frame: false, transparent: true,
       focusable: false, skipTaskbar: true, resizable: false, hasShadow: false,
       show: false, alwaysOnTop: true, fullscreenable: false,
+      // Allow the overlay to cover the macOS menu-bar area.
+      enableLargerThanScreen: true,
       webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true } });
     overlay = win;
     win.setIgnoreMouseEvents(true);

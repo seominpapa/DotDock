@@ -1,5 +1,7 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
+window.addEventListener('online', () => ipcRenderer.send('dotdock:network-online'));
+
 contextBridge.exposeInMainWorld('dotdock', {
   saveSchedule: (entry) => ipcRenderer.invoke('dotdock:save-schedule', entry),
   deleteSchedule: (id) => ipcRenderer.invoke('dotdock:delete-schedule', id),

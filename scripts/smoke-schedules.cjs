@@ -204,10 +204,27 @@ module.exports = async function verifySchedules({ application, page, outputDir, 
       nodeIntegration: win.webContents.getLastWebPreferences().nodeIntegration,
       sandbox: win.webContents.getLastWebPreferences().sandbox } : null;
   })).toEqual({ focusable: false, ignoresMouse: true, nodeIntegration: false, sandbox: true });
+  await expect.poll(() => application.evaluate(async ({ BrowserWindow, screen }) => {
+    const win = BrowserWindow.getAllWindows().find(item => item.webContents.getURL().endsWith('/alarm-edge.html'));
+    if (!win || !win.isVisible()) return false;
+    const bounds = win.getBounds();
+    const display = screen.getDisplayMatching(BrowserWindow.getAllWindows()[0].getBounds()).bounds;
+    const style = await win.webContents.executeJavaScript(`(() => {
+      const effect = getComputedStyle(document.body, '::after');
+      return { opacity: Number(effect.opacity), border: effect.borderTopWidth, color: effect.borderTopColor };
+    })()`);
+    return ['x', 'y', 'width', 'height'].every(key => bounds[key] === display[key])
+      && style.opacity > 0.2 && style.border === '5px' && style.color === 'rgb(165, 180, 252)';
+  }), { intervals: [50, 100, 150], timeout: 2500 }).toBe(true);
+  await application.evaluate(async ({ BrowserWindow }, filename) => {
+    const win = BrowserWindow.getAllWindows().find(item => item.webContents.getURL().endsWith('/alarm-edge.html'));
+    const capture = await win.webContents.capturePage();
+    process.getBuiltinModule('node:fs').writeFileSync(filename, capture.toPNG());
+  }, path.join(outputDir, 'alarm-edge.png'));
   await expect(alarm).toHaveCount(0);
   await expect.poll(() => application.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().length),
     { timeout: 6000 }).toBe(1);
-  report.checks.push('screen-edge-only preview uses temporary non-focusable sandboxed click-through overlay and closes automatically');
+  report.checks.push('screen-edge-only preview visibly glows at full display bounds; sandboxed click-through overlay closes automatically');
 
   await preferences(page, characterOnly);
   await page.screenshot({ path: path.join(outputDir, 'schedules.png') });

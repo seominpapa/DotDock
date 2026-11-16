@@ -11,6 +11,7 @@ const { registerCharacterModelIpc } = require('./character-models.cjs');
 const schedules = require('./schedules.cjs');
 const { createScheduleRuntime } = require('./schedule-runtime.cjs');
 const { createAlarmEffects } = require('./alarm-effects.cjs');
+const { createAutoSyncRuntime } = require('./auto-sync-runtime.cjs');
 
 const EXPANDED_SIZE = { width: 390, height: 600 };
 const VALID_SYNC_MINUTES = [5, 10, 15, 20];
@@ -137,7 +138,7 @@ let isExpanded = false;
 let isQuitting = false;
 let preExpandPos = null;
 let appState = null;
-let autoSyncTimer = null;
+let autoSyncRuntime = null;
 let scheduleRuntime = null;
 let alarmEffects = null;
 let alarmVisible = false;
@@ -528,20 +529,14 @@ function applyLoginItemSetting(openAtLogin) {
 }
 
 function restartAutoSyncTimer() {
-  if (autoSyncTimer) {
-    clearInterval(autoSyncTimer);
-    autoSyncTimer = null;
-  }
   if (SMOKE_TEST) return;
-  const mins = normalizeAutoSyncMinutes(appState?.autoSyncMinutes);
-  const intervalMs = mins * 60 * 1000;
-  autoSyncTimer = setInterval(() => {
-    if (!appState || isQuitting) return;
-    void oauth.syncProviderQuota(undefined, appState, getOAuthHooks());
-  }, intervalMs);
-  if (typeof autoSyncTimer.unref === 'function') {
-    autoSyncTimer.unref();
-  }
+  if (!autoSyncRuntime) autoSyncRuntime = createAutoSyncRuntime({ powerMonitor,
+    getState: () => appState,
+    getIntervalMs: () => normalizeAutoSyncMinutes(appState?.autoSyncMinutes) * 60_000,
+    sync: () => oauth.syncProviderQuota(undefined, appState, getOAuthHooks()),
+    onError: (error) => console.warn('[DotDock] Automatic quota sync failed:', error.message)
+  });
+  autoSyncRuntime.restart();
 }
 
 function updateTrayMenu() {
@@ -677,6 +672,10 @@ function getOAuthHooks() {
 }
 
 function registerIpc() {
+  ipcMain.on('dotdock:network-online', (event) => {
+    if (event.sender !== mainWindow?.webContents) return;
+    autoSyncRuntime?.recover();
+  });
   registerCharacterModelIpc({ ipcMain, dialog, getWindow: () => mainWindow,
     getUserData: () => app.getPath('userData'),
     getBundledModelsDirectory: () => path.join(app.getAppPath(), 'dist', 'models') });
@@ -1214,7 +1213,7 @@ app.whenReady().then(async () => {
   mainWindow.webContents.once('did-finish-load', startScheduleRuntime);
   if (!SMOKE_TEST) {
     watchLocalQuotaFile();
-    void oauth.detectLocalAuth(undefined, appState, getOAuthHooks());
+    autoSyncRuntime.recover();
     const isBundled = app.isPackaged || __dirname.includes('.app/Contents/');
     if (isBundled && appState.checkUpdatesOnStartup) {
       setTimeout(() => { void updater.promptAtStartup().catch(() => {}); }, 2000);
@@ -1233,10 +1232,7 @@ app.on('before-quit', () => {
   isQuitting = true;
   scheduleRuntime?.stop();
   alarmEffects?.close();
-  if (autoSyncTimer) {
-    clearInterval(autoSyncTimer);
-    autoSyncTimer = null;
-  }
+  autoSyncRuntime?.stop();
   fs.unwatchFile(getLocalQuotaFilePath());
   saveStateToDisk();
 });
