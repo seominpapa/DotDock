@@ -6,11 +6,11 @@
 
 [최신 릴리스와 설치 파일](https://github.com/seominpapa/DotDock/releases/latest)
 
-| 컴퓨터 | 0.1.12 설치 파일 |
+| 컴퓨터 | 0.1.13 설치 파일 |
 | --- | --- |
-| Mac Apple Silicon (M 시리즈) | [DMG 다운로드](https://github.com/seominpapa/DotDock/releases/download/v0.1.12/DotDock-0.1.12-arm64.dmg) |
-| Mac Intel | [DMG 다운로드](https://github.com/seominpapa/DotDock/releases/download/v0.1.12/DotDock-0.1.12-x64.dmg) |
-| Windows 64비트 | [설치 EXE 다운로드](https://github.com/seominpapa/DotDock/releases/download/v0.1.12/DotDock-Setup-0.1.12-x64.exe) |
+| Mac Apple Silicon (M 시리즈) | [DMG 다운로드](https://github.com/seominpapa/DotDock/releases/download/v0.1.13/DotDock-0.1.13-arm64.dmg) |
+| Mac Intel | [DMG 다운로드](https://github.com/seominpapa/DotDock/releases/download/v0.1.13/DotDock-0.1.13-x64.dmg) |
+| Windows 64비트 | [설치 EXE 다운로드](https://github.com/seominpapa/DotDock/releases/download/v0.1.13/DotDock-Setup-0.1.13-x64.exe) |
 
 Mac은 DMG를 열어 DotDock을 응용 프로그램 폴더로 복사한 뒤 실행합니다. Windows는 Setup EXE를 실행하고 설치 안내를 따릅니다. 설치 파일은 개발자 인증서로 서명·공증하지 않았으므로 운영체제의 보안 경고가 표시될 수 있습니다. Windows ARM 네이티브 설치 파일은 제공하지 않습니다.
 
@@ -20,13 +20,13 @@ Mac은 DMG를 열어 DotDock을 응용 프로그램 폴더로 복사한 뒤 실�
 
 **Windows 10 / 11**
 
-1. `DotDock-Setup-0.1.12-x64.exe`를 다운로드해 실행합니다.
+1. `DotDock-Setup-0.1.13-x64.exe`를 다운로드해 실행합니다.
 2. **Windows의 PC 보호** 경고가 나타나면 **추가 정보 → 실행**을 누릅니다.
 3. 설치 마법사를 완료하면 바탕화면과 시작 메뉴에 바로가기가 생성됩니다.
 
 **macOS**
 
-1. 컴퓨터에 맞는 `DotDock-0.1.12-arm64.dmg` 또는 `DotDock-0.1.12-x64.dmg`를 열고 `DotDock.app`을 **Applications(응용 프로그램)** 폴더로 복사합니다.
+1. 컴퓨터에 맞는 `DotDock-0.1.13-arm64.dmg` 또는 `DotDock-0.1.13-x64.dmg`를 열고 `DotDock.app`을 **Applications(응용 프로그램)** 폴더로 복사합니다.
 2. 실행이 차단되면 **시스템 설정 → 개인정보 보호 및 보안 → 확인 없이 열기**를 선택합니다. 앱을 한 번 실행해 차단 안내를 확인한 뒤 이용하세요.
 3. 계속 차단되는 경우 터미널에서 아래 명령어로 DotDock의 다운로드 격리 속성만 해제한 뒤 다시 실행합니다.
 
@@ -92,7 +92,7 @@ GitHub의 최신 정식 릴리스를 조회하고 현재 OS·CPU에 맞는 설�
 
 **3D를 선택하면 해당 캐릭터의 모델을 GitHub에서 자동 다운로드**합니다. 파일 크기와 SHA-256을 확인해 로컬에 캐시하며, 다시 선택하면 캐시를 사용합니다. 인터넷에 연결되지 않거나 다운로드에 실패하면 앱에 포함된 기본 모델로 표시합니다. 별도 ZIP을 설치할 필요는 없습니다.
 
-12종을 파일로 받고 싶다면 [3D 모델 ZIP 다운로드 — 0.1.12](https://github.com/seominpapa/DotDock/releases/download/v0.1.12/DotDock-3D-Models-0.1.12.zip)를 이용하세요. [각 GLB와 검증용 매니페스트](https://github.com/seominpapa/DotDock/tree/v0.1.12/public/models)도 공개되어 있습니다. ZIP에는 `models/` 아래 12개 GLB, 사용 안내, 파일별 SHA-256 목록과 버전이 고정된 매니페스트가 들어 있습니다. 압축을 푼 GLB는 **GLB 가져오기**로 직접 선택할 수 있습니다.
+12종을 파일로 받고 싶다면 [3D 모델 ZIP 다운로드 — 0.1.13](https://github.com/seominpapa/DotDock/releases/download/v0.1.13/DotDock-3D-Models-0.1.13.zip)를 이용하세요. [각 GLB와 검증용 매니페스트](https://github.com/seominpapa/DotDock/tree/v0.1.13/public/models)도 공개되어 있습니다. ZIP에는 `models/` 아래 12개 GLB, 사용 안내, 파일별 SHA-256 목록과 버전이 고정된 매니페스트가 들어 있습니다. 압축을 푼 GLB는 **GLB 가져오기**로 직접 선택할 수 있습니다.
 
 3D를 선택한 경우에만 렌더러와 선택한 모델 하나를 불러옵니다. 회전·크기 변경 등 화면 변화가 있을 때만 다시 그리고, 숨김·최소화 시 렌더링을 멈추며 2D로 전환하면 GPU 자원을 해제합니다. 3D를 선택하면 추가 GPU 메모리를 사용하며 장비별 사용량은 다를 수 있습니다.
 

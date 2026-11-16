@@ -22,6 +22,8 @@ function createAlarmEffects({ BrowserWindow, Notification, screen, shell,
       enableLargerThanScreen: true,
       webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true } });
     overlay = win;
+    // Windows can clamp the initial window size to the work area.
+    win.setBounds(bounds);
     win.setIgnoreMouseEvents(true);
     win.setAlwaysOnTop(true, 'floating');
     win.once('ready-to-show', () => { if (!win.isDestroyed()) win.showInactive(); });

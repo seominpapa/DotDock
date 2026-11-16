@@ -9,7 +9,9 @@ function fixture(options = {}) {
     constructor(settings) {
       if (options.edgeFailure) throw new Error('overlay unavailable');
       this.options = settings; this.destroyed = false; windows.push(this);
+      this.bounds = { x: settings.x, y: settings.y, width: settings.width, height: settings.height - 40 };
     }
+    setBounds(bounds) { this.bounds = { ...bounds }; }
     setIgnoreMouseEvents(value) { this.ignoreMouse = value; }
     setAlwaysOnTop(value) { this.onTop = value; }
     once(_event, fn) { this.ready = fn; }
@@ -52,6 +54,14 @@ test('edge overlay uses fixed local file, isolated sandbox and inactive click-th
   assert.equal(win.ignoreMouse, true); assert.equal(win.shownInactive, true);
   assert.ok(win.file.endsWith('alarm-edge.html'));
   f.effects.close(); assert.equal(win.destroyed, true);
+});
+
+test('edge overlay restores full display bounds after native creation clamps to the work area', () => {
+  const f = fixture();
+  f.effects.show(alert, { screenEdge: true });
+  assert.deepEqual(f.windows[0].bounds, { x: 0, y: 0, width: 1000, height: 700 });
+  assert.equal(f.windows[0].options.enableLargerThanScreen, true);
+  f.effects.close();
 });
 
 test('notification and sound are independent; stale notifications are closed', () => {
