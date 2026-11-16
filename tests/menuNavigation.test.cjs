@@ -49,8 +49,9 @@ test('dashboard has distinct menus and restores the old memo destination', () =>
   assert.equal(registry.getWidgetById('unknown').id, 'ai-quota');
 });
 
-test('provider visibility can restore hidden providers without clearing quota selections', () => {
+test('usage checkboxes replace the provider menu and restore previously hidden providers', () => {
   const { AiQuotaWidget } = load('../src/widgets/ai-quota/AiQuotaWidget.tsx');
+  const { getSelectedDockMetrics } = load('../src/services/quotaMetrics.ts');
   const bucket = { used: 25, limit: 100, unit: '%', resetLabel: '대기' };
   const state = { enabledProviders: ['codex'], dockMetricIds: ['codex:weekly', 'claude:weekly'],
     showSystemWidget: false, autoSyncMinutes: 10,
@@ -60,12 +61,23 @@ test('provider visibility can restore hidden providers without clearing quota se
       gemini: { fiveHour: bucket, weekly: bucket } } };
   const patches = [];
   const controls = elements(AiQuotaWidget({ state, updateState: (patch) => patches.push(patch) }));
-  const codex = controls.find((node) => node.props?.['aria-label'] === 'ChatGPT · Codex 현황 표시');
-  const claude = controls.find((node) => node.props?.['aria-label'] === 'Claude 현황 표시');
-  assert.ok(codex && claude);
-  assert.equal(codex.props.disabled, true, 'at least one provider remains visible');
-  claude.props.onChange();
-  assert.deepEqual(patches, [{ enabledProviders: ['codex', 'claude'] }]);
+  assert.equal(controls.some((node) => node.props?.['aria-label'] === 'AI 현황 표시 선택'), false);
+  assert.equal(controls.some((node) => node.props?.children === '현황에 표시할 AI'), false);
+  const cards = controls.filter((node) => node.type === 'section' && node.props.className === 'provider-card');
+  const card = (name) => cards.find((node) => elements(node).some((child) =>
+    child.props?.className === 'provider-name' && child.props.children === name));
+  for (const name of ['ChatGPT · Codex', 'Claude', 'Antigravity · Gemini']) assert.ok(card(name));
+  const rows = (name) => elements(card(name)).filter((node) => typeof node.props?.onPinToDock === 'function');
+  const claudeRows = rows('Claude');
+  assert.ok(claudeRows.every((node) => !node.props.isPinnedToDock));
+  claudeRows[1].props.onPinToDock();
+  assert.deepEqual(patches[0], { dockMetricIds: ['codex:weekly', 'claude:weekly'], enabledProviders: ['codex', 'claude'] });
+  assert.deepEqual(getSelectedDockMetrics({ ...state, ...patches[0] }).map((metric) => metric.id),
+    ['codex:weekly', 'claude:weekly']);
+  claudeRows[0].props.onPinToDock();
+  assert.deepEqual(patches[1], { dockMetricIds: ['codex:weekly', 'claude:weekly', 'claude:fiveHour'], enabledProviders: ['codex', 'claude'] });
+  rows('ChatGPT · Codex')[1].props.onPinToDock();
+  assert.deepEqual(patches[2], { dockMetricIds: ['claude:weekly'] });
   assert.deepEqual(state.dockMetricIds, ['codex:weekly', 'claude:weekly']);
   assert.deepEqual(state.enabledProviders, ['codex']);
 });

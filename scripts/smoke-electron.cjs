@@ -68,6 +68,13 @@ async function launch() {
   await page.waitForFunction(() => Boolean(window.dotdock));
 }
 
+async function saveFixtureState(patch) {
+  const state = await page.evaluate((value) => window.dotdock.saveState(value), patch);
+  await application.evaluate(({ BrowserWindow }, payload) => {
+    BrowserWindow.getAllWindows()[0].webContents.send('dotdock:command', { type: 'state-updated', payload });
+  }, state);
+}
+
 async function stubAccountActions() {
   const state = await page.evaluate(() => window.dotdock.getState());
   await application.evaluate(({ ipcMain }, fixtureState) => {
@@ -144,17 +151,27 @@ async function verifyFirstRun() {
   await expect(page.getByRole('dialog', { name: 'DotDock 정보 HUD', exact: true })).toBeVisible();
   report.checks.push('first-run onboarding, zodiac selection, HUD');
 
+  await saveFixtureState({ enabledProviders: ['codex'],
+    dockMetricIds: ['codex:weekly', 'claude:fiveHour'] });
+  await expect(page.getByLabel('AI 현황 표시 선택', { exact: true })).toHaveCount(0);
+  await expect(page.getByText('현황에 표시할 AI', { exact: true })).toHaveCount(0);
+  await expect(page.locator('.pill-quota-item')).toHaveCount(1);
   const claudeCard = page.locator('section.provider-card').filter({
     has: page.locator('.provider-name').filter({ hasText: /^Claude$/ })
   });
-  await claudeCard.locator('.quota-pin-check').filter({ hasText: '5시간 (5h)' })
-    .getByRole('checkbox').check();
+  const claudeMetric = claudeCard.locator('.quota-pin-check').filter({ hasText: '5시간 (5h)' })
+    .getByRole('checkbox');
+  await expect(claudeMetric).not.toBeChecked();
+  await claudeMetric.check();
   await expect(page.locator('.pill-quota-item')).toHaveCount(2);
   await expect(page.locator('.pill-quota-item[data-metric-id="codex:weekly"]')).toBeVisible();
   await expect(page.locator('.pill-quota-item[data-metric-id="claude:fiveHour"]')).toBeVisible();
   await expect.poll(() => page.evaluate(async () => (await window.dotdock.getState()).dockMetricIds))
     .toEqual(['codex:weekly', 'claude:fiveHour']);
-  report.checks.push('multiple selected quota rows render together');
+  await expect.poll(() => page.evaluate(async () => (await window.dotdock.getState()).enabledProviders))
+    .toEqual(['codex', 'claude']);
+  await saveFixtureState({ enabledProviders: ['codex', 'claude', 'gemini'] });
+  report.checks.push('only usage checkboxes select multiple dock rows and restore previously hidden providers');
 
   const stats = await page.evaluate(() => window.dotdock.getSystemStats());
   for (const key of ['cpuLoadPercent', 'gpuLoadPercent', 'memPercent']) {

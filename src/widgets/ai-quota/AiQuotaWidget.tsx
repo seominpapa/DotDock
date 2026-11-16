@@ -145,6 +145,14 @@ export function AiQuotaWidget({
   const showSystem = (filter === 'all' && state.showSystemWidget) || filter === 'system';
 
   const selectedDockMetricIds = getSelectedDockMetricIds(state);
+  const pinToDock = (provider: ProviderId, metricId: DockMetricId) => {
+    const enabled = enabledProviders.includes(provider);
+    void updateState({
+      dockMetricIds: !enabled && selectedDockMetricIds.includes(metricId)
+        ? selectedDockMetricIds : toggleDockMetric(state, metricId),
+      ...(!enabled ? { enabledProviders: [...enabledProviders, provider] } : {})
+    });
+  };
 
   const codexBuckets: Array<{
     metricId: DockMetricId;
@@ -271,32 +279,6 @@ export function AiQuotaWidget({
         ))}
       </div>
 
-      {showLlm && (
-        <section className="provider-card" aria-label="AI 현황 표시 선택">
-          <div className="dock-metric-pick-title">현황에 표시할 AI</div>
-          <div className="dock-metric-pick-items">
-            {([
-              ['codex', 'ChatGPT · Codex'],
-              ['claude', 'Claude'],
-              ['gemini', 'Antigravity · Gemini']
-            ] as const).map(([provider, label]) => {
-              const enabled = enabledProviders.includes(provider);
-              return (
-                <label key={provider} className="llm-check-label">
-                  <input type="checkbox" aria-label={`${label} 현황 표시`}
-                    checked={enabled} disabled={enabled && enabledProviders.length === 1}
-                    onChange={() => void updateState({ enabledProviders: enabled
-                      ? enabledProviders.filter((id) => id !== provider)
-                      : [...enabledProviders, provider] })} />
-                  <span>{label}</span>
-                </label>
-              );
-            })}
-          </div>
-          <div className="quota-reset-text">사용량 항목의 체크박스를 선택하면 캐릭터 아래에도 표시합니다.</div>
-        </section>
-      )}
-
       {(syncStatusMessage || authStatusMessage) && (
         <div className="sync-banner">
           <span>{syncStatusMessage || authStatusMessage}</span>
@@ -304,7 +286,7 @@ export function AiQuotaWidget({
       )}
 
       {/* LLM Cards */}
-      {showLlm && enabledProviders.includes('codex') && (
+      {showLlm && (
         <section className="provider-card">
           <div className="provider-header">
             <span className="provider-dot" style={{ backgroundColor: '#10b981' }} />
@@ -320,15 +302,15 @@ export function AiQuotaWidget({
               label={item.label}
               bucket={item.bucket}
               accentColor={item.color}
-              isPinnedToDock={selectedDockMetricIds.includes(item.metricId)}
-              onPinToDock={() => void updateState({ dockMetricIds: toggleDockMetric(state, item.metricId) })}
+              isPinnedToDock={enabledProviders.includes('codex') && selectedDockMetricIds.includes(item.metricId)}
+              onPinToDock={() => pinToDock('codex', item.metricId)}
             />
           ))}
           {renderDisconnectedAction('codex')}
         </section>
       )}
 
-      {showLlm && enabledProviders.includes('claude') && (
+      {showLlm && (
         <section className="provider-card">
           <div className="provider-header">
             <span className="provider-dot" style={{ backgroundColor: '#f59e0b' }} />
@@ -344,15 +326,15 @@ export function AiQuotaWidget({
               label={item.label}
               bucket={item.bucket}
               accentColor={item.color}
-              isPinnedToDock={selectedDockMetricIds.includes(item.metricId)}
-              onPinToDock={() => void updateState({ dockMetricIds: toggleDockMetric(state, item.metricId) })}
+              isPinnedToDock={enabledProviders.includes('claude') && selectedDockMetricIds.includes(item.metricId)}
+              onPinToDock={() => pinToDock('claude', item.metricId)}
             />
           ))}
           {renderDisconnectedAction('claude')}
         </section>
       )}
 
-      {showLlm && enabledProviders.includes('gemini') && (
+      {showLlm && (
         <section className="provider-card">
           <div className="provider-header">
             <span className="provider-dot" style={{ backgroundColor: '#38bdf8' }} />
@@ -368,8 +350,8 @@ export function AiQuotaWidget({
               label={item.label}
               bucket={item.bucket}
               accentColor={item.color}
-              isPinnedToDock={selectedDockMetricIds.includes(item.metricId)}
-              onPinToDock={() => void updateState({ dockMetricIds: toggleDockMetric(state, item.metricId) })}
+              isPinnedToDock={enabledProviders.includes('gemini') && selectedDockMetricIds.includes(item.metricId)}
+              onPinToDock={() => pinToDock('gemini', item.metricId)}
             />
           ))}
           {renderDisconnectedAction('gemini')}
