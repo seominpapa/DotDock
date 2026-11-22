@@ -6,35 +6,25 @@
 
 [최신 릴리스와 설치 파일](https://github.com/seominpapa/DotDock/releases/latest)
 
-| 컴퓨터 | 0.1.13 설치 파일 |
+| 컴퓨터 | 0.1.14 설치 파일 |
 | --- | --- |
-| Mac Apple Silicon (M 시리즈) | [DMG 다운로드](https://github.com/seominpapa/DotDock/releases/download/v0.1.13/DotDock-0.1.13-arm64.dmg) |
-| Mac Intel | [DMG 다운로드](https://github.com/seominpapa/DotDock/releases/download/v0.1.13/DotDock-0.1.13-x64.dmg) |
-| Windows 64비트 | [설치 EXE 다운로드](https://github.com/seominpapa/DotDock/releases/download/v0.1.13/DotDock-Setup-0.1.13-x64.exe) |
+| Mac Apple Silicon (M 시리즈) | [DMG 다운로드](https://github.com/seominpapa/DotDock/releases/download/v0.1.14/DotDock-0.1.14-arm64.dmg) |
+| Mac Intel | [DMG 다운로드](https://github.com/seominpapa/DotDock/releases/download/v0.1.14/DotDock-0.1.14-x64.dmg) |
+| Windows 64비트 | [설치 EXE 다운로드](https://github.com/seominpapa/DotDock/releases/download/v0.1.14/DotDock-Setup-0.1.14-x64.exe) |
 
-Mac은 DMG를 열어 DotDock을 응용 프로그램 폴더로 복사한 뒤 실행합니다. Windows는 Setup EXE를 실행하고 설치 안내를 따릅니다. 설치 파일은 개발자 인증서로 서명·공증하지 않았으므로 운영체제의 보안 경고가 표시될 수 있습니다. Windows ARM 네이티브 설치 파일은 제공하지 않습니다.
+Mac은 DMG를 열어 DotDock을 응용 프로그램 폴더로 복사한 뒤 실행합니다. Windows는 Setup EXE를 실행하고 설치 안내를 따릅니다. macOS 앱은 Developer ID Application 인증서로 서명하고 Apple 공증을 거친 뒤 배포합니다. Windows 설치 파일은 별도의 코드 서명 인증서를 적용하지 않아 SmartScreen 경고가 표시될 수 있습니다. Windows ARM 네이티브 설치 파일은 제공하지 않습니다.
 
-### 비서명 앱 보안 경고가 표시될 때
+### Windows에서 보안 경고가 표시될 때
 
 아래 안내는 이 저장소의 공식 릴리스에서 받은 DotDock에만 적용하세요.
 
 **Windows 10 / 11**
 
-1. `DotDock-Setup-0.1.13-x64.exe`를 다운로드해 실행합니다.
+1. `DotDock-Setup-0.1.14-x64.exe`를 다운로드해 실행합니다.
 2. **Windows의 PC 보호** 경고가 나타나면 **추가 정보 → 실행**을 누릅니다.
 3. 설치 마법사를 완료하면 바탕화면과 시작 메뉴에 바로가기가 생성됩니다.
 
-**macOS**
-
-1. 컴퓨터에 맞는 `DotDock-0.1.13-arm64.dmg` 또는 `DotDock-0.1.13-x64.dmg`를 열고 `DotDock.app`을 **Applications(응용 프로그램)** 폴더로 복사합니다.
-2. 실행이 차단되면 **시스템 설정 → 개인정보 보호 및 보안 → 확인 없이 열기**를 선택합니다. 앱을 한 번 실행해 차단 안내를 확인한 뒤 이용하세요.
-3. 계속 차단되는 경우 터미널에서 아래 명령어로 DotDock의 다운로드 격리 속성만 해제한 뒤 다시 실행합니다.
-
-```bash
-xattr -dr com.apple.quarantine /Applications/DotDock.app
-```
-
-파일이 실제로 손상된 경우에는 설치 파일을 다시 다운로드하세요. **로그인 시 자동 실행**은 기본으로 켜져 있으며, DotDock 설정 또는 트레이 아이콘 우클릭 메뉴에서 끌 수 있습니다.
+**로그인 시 자동 실행**은 기본으로 켜져 있으며, DotDock 설정 또는 트레이 아이콘 우클릭 메뉴에서 끌 수 있습니다.
 
 ## 기능
 
@@ -55,7 +45,7 @@ xattr -dr com.apple.quarantine /Applications/DotDock.app
 
 - **캐릭터 빛 효과·말풍선:** 기본 켜짐. 캐릭터 주변의 짧은 빛 효과와 일정 내용을 표시합니다.
 - **화면 테두리 효과:** 기본 꺼짐. 캐릭터가 있는 모니터 가장자리에 약 3초간 빛을 표시합니다. 다른 창의 포커스나 마우스 입력을 가져가지 않습니다.
-- **시스템 알림:** 기본 켜짐. macOS·Windows의 알림을 사용하며 OS 알림 권한·집중 모드·비서명 앱 제한의 영향을 받을 수 있습니다.
+- **시스템 알림:** 기본 켜짐. macOS·Windows의 알림을 사용하며 OS 알림 권한·집중 모드의 영향을 받을 수 있습니다.
 - **알림 소리:** 기본 꺼짐. OS 기본 알림음을 사용하며 시스템 음량·음소거 설정의 영향을 받습니다.
 
 모든 효과를 끄면 팝업·테두리·시스템 알림·소리를 보내지 않습니다. 일정과 효과 선택은 이 컴퓨터의 앱 설정에 저장하며 외부 캘린더와 동기화하지 않습니다. 절전 복귀나 재실행 시 놓친 일정은 한 번 확인하고, 이미 처리한 알림은 다시 보내지 않습니다. 여러 일정이 동시에 도래하면 말풍선은 순서대로 처리합니다. **DotDock이 실행 중이어야 하며 트레이에 숨겨도 동작하지만, 완전히 종료하거나 컴퓨터가 꺼진 동안에는 알리지 못합니다.** 웹 미리보기에서는 일정 알림을 실행하지 않습니다.
@@ -92,7 +82,7 @@ GitHub의 최신 정식 릴리스를 조회하고 현재 OS·CPU에 맞는 설�
 
 **3D를 선택하면 해당 캐릭터의 모델을 GitHub에서 자동 다운로드**합니다. 파일 크기와 SHA-256을 확인해 로컬에 캐시하며, 다시 선택하면 캐시를 사용합니다. 인터넷에 연결되지 않거나 다운로드에 실패하면 앱에 포함된 기본 모델로 표시합니다. 별도 ZIP을 설치할 필요는 없습니다.
 
-12종을 파일로 받고 싶다면 [3D 모델 ZIP 다운로드 — 0.1.13](https://github.com/seominpapa/DotDock/releases/download/v0.1.13/DotDock-3D-Models-0.1.13.zip)를 이용하세요. [각 GLB와 검증용 매니페스트](https://github.com/seominpapa/DotDock/tree/v0.1.13/public/models)도 공개되어 있습니다. ZIP에는 `models/` 아래 12개 GLB, 사용 안내, 파일별 SHA-256 목록과 버전이 고정된 매니페스트가 들어 있습니다. 압축을 푼 GLB는 **GLB 가져오기**로 직접 선택할 수 있습니다.
+12종을 파일로 받고 싶다면 [3D 모델 ZIP 다운로드 — 0.1.14](https://github.com/seominpapa/DotDock/releases/download/v0.1.14/DotDock-3D-Models-0.1.14.zip)를 이용하세요. [각 GLB와 검증용 매니페스트](https://github.com/seominpapa/DotDock/tree/v0.1.14/public/models)도 공개되어 있습니다. ZIP에는 `models/` 아래 12개 GLB, 사용 안내, 파일별 SHA-256 목록과 버전이 고정된 매니페스트가 들어 있습니다. 압축을 푼 GLB는 **GLB 가져오기**로 직접 선택할 수 있습니다.
 
 3D를 선택한 경우에만 렌더러와 선택한 모델 하나를 불러옵니다. 회전·크기 변경 등 화면 변화가 있을 때만 다시 그리고, 숨김·최소화 시 렌더링을 멈추며 2D로 전환하면 GPU 자원을 해제합니다. 3D를 선택하면 추가 GPU 메모리를 사용하며 장비별 사용량은 다를 수 있습니다.
 
@@ -123,6 +113,10 @@ npm start
 npm run dist:mac
 npm run dist:win
 ```
+
+macOS 배포 빌드는 **Developer ID Application 인증서와 개인키**, `APPLE_TEAM_ID`, Apple 공증용 인증이 필요합니다. 인증서가 없거나 공증 티켓·Gatekeeper 검증에 실패하면 배포를 중단합니다. DMG에서 꺼낸 앱도 같은 검사를 통과해야 합니다.
+
+GitHub Actions에서는 `CSC_LINK`(암호화된 P12 인증서), `CSC_KEY_PASSWORD`, `APPLE_ID`, `APPLE_APP_SPECIFIC_PASSWORD`, `APPLE_TEAM_ID`를 저장소 Secrets에 설정합니다. 로컬에서는 키체인의 인증서를 사용하고, 공증 인증에는 위 Apple 환경변수 또는 `APPLE_KEYCHAIN_PROFILE`을 사용할 수 있습니다. 인증서·개인키·암호는 저장소에 커밋하지 마세요. `npm run pack:mac`은 임시 서명을 사용하는 로컬 개발용이며 공식 배포에 사용하지 않습니다.
 
 `.github/workflows/release.yml`은 macOS Apple Silicon·Intel과 Windows x64에서 소스 앱과 설치 파일에서 꺼내거나 설치한 앱을 실행 검증합니다. `v<package.json 버전>` 태그를 푸시하면 모든 작업이 성공한 뒤 설치 파일·SHA256SUMS를 GitHub Releases에 게시합니다. 실패 시 Actions의 검사 보고서와 스크린샷을 확인하세요. 실제 사용자 PC의 수동 설치·외부 계정 로그인·다양한 GPU 성능은 별도 검증이 필요합니다.
 

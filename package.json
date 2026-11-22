@@ -1,6 +1,6 @@
 {
   "name": "dotdock",
-  "version": "0.1.13",
+  "version": "0.1.14",
   "repository": {
     "type": "git",
     "url": "https://github.com/seominpapa/DotDock.git"
@@ -54,7 +54,12 @@
       "electron/**/*",
       "package.json"
     ],
+    "afterSign": "./scripts/verify-mac-signing.cjs",
     "mac": {
+      "forceCodeSigning": true,
+      "type": "distribution",
+      "hardenedRuntime": true,
+      "notarize": true,
       "artifactName": "DotDock-${version}-${arch}.${ext}",
       "target": [
         "dir",
