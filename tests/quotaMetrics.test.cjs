@@ -12,7 +12,8 @@ compiled.paths = module.paths;
 compiled._compile(ts.transpileModule(fs.readFileSync(filename, 'utf8'), {
   compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 }
 }).outputText, filename);
-const { getSelectedDockMetricIds, getSelectedDockMetrics, toggleDockMetric } = compiled.exports;
+const { getAvailableDockMetrics, getSelectedDockMetricIds, getSelectedDockMetrics, toggleDockMetric,
+  normalizeAntigravityPeriodQuotas, normalizeDockMetricIds } = compiled.exports;
 
 function state(patch = {}) {
   const bucket = { used: 25, limit: 100, unit: '%', resetLabel: '대기' };
@@ -60,4 +61,72 @@ test('toggles independently without mutating state or losing unavailable selecti
   assert.deepEqual(toggleDockMetric(current, 'codex:weekly'), ['claude:fable']);
   assert.deepEqual(current.dockMetricIds, ['codex:weekly', 'claude:fable']);
   assert.deepEqual(toggleDockMetric(state(), 'codex:weekly'), []);
+});
+
+function withPeriodQuotas(patch = {}) {
+  const current = state(patch);
+  current.quota.gemini.periodQuotas = [
+    ['gemini-5h', 'gemini', 'fiveHour', 10], ['gemini-weekly', 'gemini', 'weekly', 35],
+    ['3p-5h', 'partner', 'fiveHour', 0], ['3p-weekly', 'partner', 'weekly', 51]
+  ].map(([id, family, period, used]) => ({ id, family, period, used,
+    modelLabel: family === 'gemini' ? 'Gemini 모델' : 'Claude · GPT 모델',
+    label: `${family === 'gemini' ? 'Gemini 모델' : 'Claude · GPT 모델'} · ${period === 'fiveHour' ? '5시간 (5h)' : '일주일 (7d)'}`,
+    limit: 100, unit: '%', resetLabel: `${id} 초기화` }));
+  return current;
+}
+
+test('Antigravity preserves separate family and period percentages instead of merging quotas', () => {
+  const current = withPeriodQuotas({ dockMetricIds: ['gemini:quota:gemini-5h', 'gemini:quota:gemini-weekly',
+    'gemini:quota:3p-5h', 'gemini:quota:3p-weekly'] });
+  const options = getAvailableDockMetrics(current).filter(metric => metric.provider === 'gemini');
+  assert.deepEqual(options.map(metric => metric.remainingPercent), [90, 65, 100, 49]);
+  assert.deepEqual(options.map(metric => metric.label), current.quota.gemini.periodQuotas.map(bucket => bucket.label));
+  assert.deepEqual(options.map(metric => metric.shortLabel), ['Gemini 5h', 'Gemini 7d', 'AG C/G 5h', 'AG C/G 7d']);
+  assert.ok(options.every(metric => metric.bucketKey === 'quota'));
+  assert.equal(getSelectedDockMetrics(current).length, 4);
+  assert.equal(getAvailableDockMetrics(current).filter(metric => metric.provider !== 'gemini').length, 4);
+});
+
+test('legacy Antigravity selections map once to each family most-used period with deterministic ties', () => {
+  const current = withPeriodQuotas({ dockMetricIds: ['codex:weekly', 'gemini:fiveHour', 'gemini:weekly', 'gemini:quota:3p-weekly'] });
+  assert.deepEqual(getSelectedDockMetricIds(current), ['codex:weekly', 'gemini:quota:gemini-weekly', 'gemini:quota:3p-weekly']);
+  assert.deepEqual(toggleDockMetric(current, 'gemini:quota:gemini-5h'),
+    ['codex:weekly', 'gemini:quota:gemini-weekly', 'gemini:quota:3p-weekly', 'gemini:quota:gemini-5h']);
+  assert.deepEqual(toggleDockMetric(current, 'gemini:quota:gemini-weekly'), ['codex:weekly', 'gemini:quota:3p-weekly']);
+  current.quota.gemini.periodQuotas = current.quota.gemini.periodQuotas.map(bucket => ({ ...bucket, used: 0 })).reverse();
+  assert.deepEqual(getSelectedDockMetricIds(current), ['codex:weekly', 'gemini:quota:gemini-5h', 'gemini:quota:3p-5h', 'gemini:quota:3p-weekly']);
+  assert.ok(current.dockMetricIds.includes('gemini:fiveHour'), 'resolving selections does not mutate saved state');
+});
+
+test('explicit period selections survive temporary missing data and labels changing', () => {
+  const current = withPeriodQuotas({ dockMetricIds: ['gemini:quota:gemini-5h', 'gemini:quota:future-model-weekly'] });
+  current.quota.gemini.periodQuotas = current.quota.gemini.periodQuotas.map(bucket => ({ ...bucket, label: '새 표시 이름' }));
+  assert.deepEqual(getSelectedDockMetricIds(current), ['gemini:quota:gemini-5h', 'gemini:quota:future-model-weekly']);
+  assert.deepEqual(toggleDockMetric(current, 'gemini:quota:gemini-weekly'),
+    ['gemini:quota:gemini-5h', 'gemini:quota:future-model-weekly', 'gemini:quota:gemini-weekly']);
+  delete current.quota.gemini.periodQuotas;
+  assert.deepEqual(getSelectedDockMetricIds(current), ['gemini:quota:gemini-5h', 'gemini:quota:future-model-weekly']);
+  assert.deepEqual(getSelectedDockMetrics(current), []);
+});
+
+test('invalid period data cannot create fabricated zero-usage rows or unsafe selections', () => {
+  const [valid] = withPeriodQuotas().quota.gemini.periodQuotas;
+  const entries = [valid, { ...valid, id: 'invalid-period', period: 'unknown' },
+    { ...valid, id: 'missing-used', used: undefined }, { ...valid, id: 'infinite', used: Infinity },
+    { ...valid, id: '../unsafe' }, { ...valid, id: 'html', modelLabel: 'bad\nlabel' },
+    { ...valid, id: 'bad-limit', limit: 0 }, { ...valid, id: 'bad-family', family: 'other' },
+    { ...valid, id: undefined }, { ...valid, id: ['array-id'] }, valid];
+  assert.deepEqual(normalizeAntigravityPeriodQuotas(entries), [valid]);
+  assert.deepEqual(normalizeDockMetricIds(['gemini:quota:gemini-5h', 'gemini:quota:../unsafe',
+    'codex:weekly', 'codex:weekly', null, 'gemini:quota:future-weekly']),
+  ['gemini:quota:gemini-5h', 'codex:weekly', 'gemini:quota:future-weekly']);
+  const current = state();
+  current.quota.gemini.periodQuotas = entries;
+  assert.equal(getAvailableDockMetrics(current).filter(metric => metric.provider === 'gemini').length, 1);
+});
+
+test('legacy Antigravity fallback explicitly states that no period was supplied', () => {
+  const options = getAvailableDockMetrics(state()).filter(metric => metric.provider === 'gemini');
+  assert.ok(options.every(metric => metric.label.includes('기간 미제공')));
+  assert.ok(options.every(metric => !/5h|7d/.test(metric.shortLabel)));
 });

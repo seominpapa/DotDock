@@ -6,11 +6,11 @@
 
 [최신 릴리스와 설치 파일](https://github.com/seominpapa/DotDock/releases/latest)
 
-| 컴퓨터 | 0.1.14 설치 파일 |
+| 컴퓨터 | 0.1.15 설치 파일 |
 | --- | --- |
-| Mac Apple Silicon (M 시리즈) | [DMG 다운로드](https://github.com/seominpapa/DotDock/releases/download/v0.1.14/DotDock-0.1.14-arm64.dmg) |
-| Mac Intel | [DMG 다운로드](https://github.com/seominpapa/DotDock/releases/download/v0.1.14/DotDock-0.1.14-x64.dmg) |
-| Windows 64비트 | [설치 EXE 다운로드](https://github.com/seominpapa/DotDock/releases/download/v0.1.14/DotDock-Setup-0.1.14-x64.exe) |
+| Mac Apple Silicon (M 시리즈) | [DMG 다운로드](https://github.com/seominpapa/DotDock/releases/download/v0.1.15/DotDock-0.1.15-arm64.dmg) |
+| Mac Intel | [DMG 다운로드](https://github.com/seominpapa/DotDock/releases/download/v0.1.15/DotDock-0.1.15-x64.dmg) |
+| Windows 64비트 | [설치 EXE 다운로드](https://github.com/seominpapa/DotDock/releases/download/v0.1.15/DotDock-Setup-0.1.15-x64.exe) |
 
 Mac은 DMG를 열어 DotDock을 응용 프로그램 폴더로 복사한 뒤 실행합니다. Windows는 Setup EXE를 실행하고 설치 안내를 따릅니다. macOS 앱은 Developer ID Application 인증서로 서명하고 Apple 공증을 거친 뒤 배포합니다. Windows 설치 파일은 별도의 코드 서명 인증서를 적용하지 않아 SmartScreen 경고가 표시될 수 있습니다. Windows ARM 네이티브 설치 파일은 제공하지 않습니다.
 
@@ -20,7 +20,7 @@ Mac은 DMG를 열어 DotDock을 응용 프로그램 폴더로 복사한 뒤 실�
 
 **Windows 10 / 11**
 
-1. `DotDock-Setup-0.1.14-x64.exe`를 다운로드해 실행합니다.
+1. `DotDock-Setup-0.1.15-x64.exe`를 다운로드해 실행합니다.
 2. **Windows의 PC 보호** 경고가 나타나면 **추가 정보 → 실행**을 누릅니다.
 3. 설치 마법사를 완료하면 바탕화면과 시작 메뉴에 바로가기가 생성됩니다.
 
@@ -32,6 +32,7 @@ Mac은 DMG를 열어 DotDock을 응용 프로그램 폴더로 복사한 뒤 실�
 - 선택형 **3D** 스타일과 회전. Tripo로 생성한 12지신 GLB를 포함하며 사용자 GLB로 바꿀 수도 있습니다. 선택 목록에는 실제 GLB에서 만든 정지 미리보기를 표시하므로 목록용 추가 3D 렌더러는 실행하지 않습니다.
 - 생년으로 띠 자동 선택, 직접 캐릭터 선택, 사용자 PNG/GIF/WebP 이미지. 사용자 이미지 품질은 원본 해상도에 따라 달라집니다.
 - Codex·Claude·Antigravity/Gemini 사용량 표시. 각 AI 카드의 사용량 체크박스로 캐릭터 아래에 표시할 항목을 선택합니다. 여러 항목을 동시에 선택할 수 있으며, 별도의 AI 표시 선택 메뉴는 없습니다.
+- Antigravity는 실제 로컬 응답에 있는 **Gemini 모델 / Claude·GPT 모델 각각의 5시간·일주일 한도**를 별도 체크박스로 표시합니다. 이 수치는 개별 모델의 독립 한도가 아니라 공급자가 제공하는 계열별 공유 한도입니다. 캐릭터 아래 `AG C/G 5h·7d`는 Antigravity의 Claude·GPT 공유 한도를 뜻하며 Claude 직접 연결의 한도와 다릅니다. 기간을 제공하지 않는 이전 응답은 **기간 미제공**으로 표시하고 기간별 수치를 추정하지 않습니다. 기존 그룹 선택은 처음 기간 정보를 받았을 때 해당 계열의 사용률이 가장 높은 기간 한 개로 이전하며, 이후에는 사용자가 선택한 기간을 유지합니다.
 - 투명 창, 드래그 이동·위치 저장, 항상 위 표시, 트레이 최소화, 로그인 시 실행.
 - 현황판의 **현황 / 계정 연결 / 일정·메모 / 앱 설정** 메뉴. AI 사용량과 PC 상태(CPU·GPU·RAM)는 현황에서, 로그인과 인증은 계정 연결에서 관리합니다. 캐릭터 설정에는 생일·그림 스타일·크기만 표시합니다.
 - 5·10·15·20분 AI 사용량 동기화, 로컬 JSON 연동, 일정·메모. 절전·잠금 해제 또는 인터넷 복구 시에는 다음 주기를 기다리지 않고 동기화를 요청하며, 실패하면 15초 간격으로 최대 두 번 더 재시도합니다.
@@ -82,7 +83,7 @@ GitHub의 최신 정식 릴리스를 조회하고 현재 OS·CPU에 맞는 설�
 
 **3D를 선택하면 해당 캐릭터의 모델을 GitHub에서 자동 다운로드**합니다. 파일 크기와 SHA-256을 확인해 로컬에 캐시하며, 다시 선택하면 캐시를 사용합니다. 인터넷에 연결되지 않거나 다운로드에 실패하면 앱에 포함된 기본 모델로 표시합니다. 별도 ZIP을 설치할 필요는 없습니다.
 
-12종을 파일로 받고 싶다면 [3D 모델 ZIP 다운로드 — 0.1.14](https://github.com/seominpapa/DotDock/releases/download/v0.1.14/DotDock-3D-Models-0.1.14.zip)를 이용하세요. [각 GLB와 검증용 매니페스트](https://github.com/seominpapa/DotDock/tree/v0.1.14/public/models)도 공개되어 있습니다. ZIP에는 `models/` 아래 12개 GLB, 사용 안내, 파일별 SHA-256 목록과 버전이 고정된 매니페스트가 들어 있습니다. 압축을 푼 GLB는 **GLB 가져오기**로 직접 선택할 수 있습니다.
+12종을 파일로 받고 싶다면 [3D 모델 ZIP 다운로드 — 0.1.15](https://github.com/seominpapa/DotDock/releases/download/v0.1.15/DotDock-3D-Models-0.1.15.zip)를 이용하세요. [각 GLB와 검증용 매니페스트](https://github.com/seominpapa/DotDock/tree/v0.1.15/public/models)도 공개되어 있습니다. ZIP에는 `models/` 아래 12개 GLB, 사용 안내, 파일별 SHA-256 목록과 버전이 고정된 매니페스트가 들어 있습니다. 압축을 푼 GLB는 **GLB 가져오기**로 직접 선택할 수 있습니다.
 
 3D를 선택한 경우에만 렌더러와 선택한 모델 하나를 불러옵니다. 회전·크기 변경 등 화면 변화가 있을 때만 다시 그리고, 숨김·최소화 시 렌더링을 멈추며 2D로 전환하면 GPU 자원을 해제합니다. 3D를 선택하면 추가 GPU 메모리를 사용하며 장비별 사용량은 다를 수 있습니다.
 

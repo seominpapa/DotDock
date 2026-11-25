@@ -120,7 +120,7 @@ function macCandidates(stdout, uid) {
     const commandLine = match[3];
     const pid = Number(match[1]);
     return validPid(pid) && /antigravity/i.test(commandLine) && /language[_-]server/i.test(commandLine)
-      && csrf(flag(commandLine, 'csrf_token')) ? { pid, commandLine } : null;
+      && (csrf(flag(commandLine, 'csrf_token')) || /(?:^|\s)--standalone(?:\s|$)/.test(commandLine)) ? { pid, commandLine } : null;
   }).filter(Boolean).slice(0, MAX_PROCESSES);
 }
 
@@ -142,7 +142,14 @@ async function discoverMac(options) {
       const match = line.match(/^n.*:(\d+)$/);
       return match ? Number(match[1]) : null;
     }));
-    return endpoints(record, ownedPorts);
+    if (csrf(flag(record.commandLine, 'csrf_token'))) return endpoints(record, ownedPorts);
+    // New standalone releases keep CSRF out of argv. Inspect only the same user's
+    // already-verified installed executable; consume only this one environment key.
+    const environment = await inspect(options.execFile, '/bin/ps', ['eww', '-p', String(record.pid), '-o', 'command='], options.signal);
+    const token = csrf(environment.match(/(?:^|\s)ANTIGRAVITY_SERVER_CSRF_TOKEN=([^\s]+)(?:\s|$)/)?.[1]);
+    const preferred = Number(flag(record.commandLine, 'https_server_port'));
+    const orderedPorts = ownedPorts.includes(preferred) ? [preferred, ...ownedPorts.filter(port => port !== preferred)] : ownedPorts;
+    return token ? orderedPorts.map(port => ({ pid: record.pid, port, protocol: 'https:', csrfToken: token })) : [];
   }));
   return batches.flat();
 }

@@ -82,6 +82,60 @@ test('usage checkboxes replace the provider menu and restore previously hidden p
   assert.deepEqual(state.enabledProviders, ['codex']);
 });
 
+test('Antigravity shared family periods have four independent usage checkboxes', () => {
+  const { AiQuotaWidget } = load('../src/widgets/ai-quota/AiQuotaWidget.tsx');
+  const bucket = { used: 25, limit: 100, unit: '%', resetLabel: '초기화 대기' };
+  const state = { enabledProviders: ['codex', 'claude', 'gemini'], dockMetricIds: ['gemini:fiveHour'],
+    showSystemWidget: false, auth: { codex: {}, claude: {}, gemini: {} },
+    quota: { lastUpdatedAt: '', source: 'oauth-sync', codex: { fiveHour: bucket, weekly: bucket },
+      claude: { fiveHour: bucket, weekly: bucket, fable: bucket }, gemini: { fiveHour: bucket, weekly: bucket,
+        periodQuotas: [['gemini-5h', 'gemini', 'fiveHour', 10], ['gemini-weekly', 'gemini', 'weekly', 50],
+          ['3p-5h', 'partner', 'fiveHour', 0], ['3p-weekly', 'partner', 'weekly', 30]]
+          .map(([id, family, period, used]) => ({ ...bucket, id, family, period, used,
+            modelLabel: family === 'gemini' ? 'Gemini 모델' : 'Claude · GPT 모델',
+            label: `${family === 'gemini' ? 'Gemini 모델' : 'Claude · GPT 모델'} · ${period === 'fiveHour' ? '5시간 (5h)' : '일주일 (7d)'}` })) } } };
+  const patches = [];
+  const tree = elements(AiQuotaWidget({ state, updateState: patch => patches.push(patch) }));
+  const card = tree.find(node => node.type === 'section' && elements(node).some(child =>
+    child.props?.className === 'provider-name' && child.props.children === 'Antigravity · Gemini'));
+  const rows = elements(card).filter(node => typeof node.props?.onPinToDock === 'function');
+  assert.equal(rows.length, 4);
+  assert.deepEqual(rows.map(node => node.props.isPinnedToDock), [false, true, false, false]);
+  assert.deepEqual(rows.map(node => node.props.bucket.used), [10, 50, 0, 30]);
+  rows[0].props.onPinToDock();
+  rows[3].props.onPinToDock();
+  assert.deepEqual(patches, [
+    { dockMetricIds: ['gemini:quota:gemini-weekly', 'gemini:quota:gemini-5h'] },
+    { dockMetricIds: ['gemini:quota:gemini-weekly', 'gemini:quota:3p-weekly'] }
+  ]);
+});
+
+test('web preview restores and persists bounded period selections without changing their identity', async t => {
+  const originalWindow = global.window;
+  const originalStorage = Object.getOwnPropertyDescriptor(global, 'localStorage');
+  t.after(() => {
+    global.window = originalWindow;
+    if (originalStorage) Object.defineProperty(global, 'localStorage', originalStorage);
+    else delete global.localStorage;
+  });
+  const row = { id: 'gemini-5h', family: 'gemini', modelLabel: 'Gemini 모델', period: 'fiveHour',
+    used: 10, limit: 100, unit: '%', resetLabel: '4시간 후 초기화', label: 'Gemini 모델 · 5시간 (5h)' };
+  let stored = JSON.stringify({ dockMetricIds: ['gemini:quota:gemini-5h', 'gemini:quota:future-weekly', 'gemini:quota:../invalid'],
+    quota: { gemini: { periodQuotas: [row, { ...row, id: 'bad', used: undefined }] } } });
+  global.window = {};
+  Object.defineProperty(global, 'localStorage', { configurable: true,
+    value: { getItem: () => stored, setItem: (_key, value) => { stored = value; } } });
+  const { loadDotDockState, saveDotDockState } = load('../src/services/storage.ts');
+  const restored = await loadDotDockState();
+  assert.deepEqual(restored.dockMetricIds, ['gemini:quota:gemini-5h', 'gemini:quota:future-weekly']);
+  assert.deepEqual(restored.quota.gemini.periodQuotas, [row]);
+  assert.ok(restored.quota.codex.weekly, 'partial preview quota data retains other providers');
+  await saveDotDockState({ dockMetricIds: ['gemini:quota:gemini-5h', 'gemini:quota:future-weekly', 'invalid'] });
+  const reloaded = await loadDotDockState();
+  assert.deepEqual(reloaded.dockMetricIds, ['gemini:quota:gemini-5h', 'gemini:quota:future-weekly']);
+  assert.deepEqual(reloaded.quota.gemini.periodQuotas, [row]);
+});
+
 test('app settings retain window actions and persist the single sync interval control', () => {
   const { AppSettingsWidget } = load('../src/widgets/app-settings/AppSettingsWidget.tsx');
   const calls = [];

@@ -241,6 +241,31 @@ test('local service success updates OAuth state without inspecting stored creden
   assert.match(state.auth.gemini.statusMessage, /로컬 서비스/);
 });
 
+test('local period quotas persist independently, failed refresh retains them, disconnect clears them', async () => {
+  let available = true;
+  const periodQuotas = [
+    { id: 'gemini-5h', family: 'gemini', modelLabel: 'Gemini 모델', period: 'fiveHour', remainingFraction: 0.8 },
+    { id: 'gemini-weekly', family: 'gemini', modelLabel: 'Gemini 모델', period: 'weekly', remainingFraction: 0.3 },
+    { id: '3p-5h', family: 'partner', modelLabel: 'Claude · GPT 모델', period: 'fiveHour', remainingFraction: 0.9 },
+    { id: '3p-weekly', family: 'partner', modelLabel: 'Claude · GPT 모델', period: 'weekly', remainingFraction: 0.4 }
+  ];
+  const oauth = loadOAuth({ local: async () => available
+    ? { status: 'ok', accountLabel: account, models: localModels, periodQuotas } : { status: 'unavailable' },
+    fs: { existsSync: () => false } });
+  const state = previousState();
+  state.dockMetricIds = ['codex:weekly', 'gemini:fiveHour', 'gemini:weekly'];
+  assert.equal((await oauth.detectLocalAuth('gemini', state, hooks)).ok, true);
+  assert.deepEqual(state.quota.gemini.periodQuotas.map(q => q.used), [20, 70, 10, 60]);
+  assert.match(state.quota.gemini.periodQuotas[1].label, /일주일/);
+  assert.deepEqual(state.dockMetricIds, ['codex:weekly', 'gemini:quota:gemini-weekly', 'gemini:quota:3p-weekly']);
+  const before = structuredClone(state.quota.gemini.periodQuotas);
+  available = false;
+  await oauth.syncProviderQuota('gemini', state, hooks);
+  assert.deepEqual(state.quota.gemini.periodQuotas, before);
+  await oauth.disconnectProvider('gemini', state, hooks);
+  assert.deepEqual(state.quota.gemini.periodQuotas, []);
+});
+
 test('unavailable or failed local service falls back to the existing saved authentication path', async (t) => {
   for (const local of [async () => ({ status: 'unavailable' }), async () => { throw new Error('private local failure'); }]) {
     const { oauth, requests } = loadWindowsIde(t, ({ path: requestPath }) => {

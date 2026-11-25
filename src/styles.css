@@ -334,6 +334,8 @@ body,
 
 .quota-row-top {
   display: flex;
+  flex-wrap: wrap;
+  gap: 4px 8px;
   align-items: baseline;
   justify-content: space-between;
   font-size: 11.5px;
@@ -344,6 +346,8 @@ body,
 }
 
 .quota-value {
+  white-space: nowrap;
+  margin-left: auto;
   font-variant-numeric: tabular-nums;
   font-weight: 700;
   color: #f8fafc;
@@ -747,12 +751,14 @@ body,
 
 .quota-pin-check {
   display: inline-flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 5px;
   cursor: pointer;
 }
 
 .quota-pin-check input[type='checkbox'] {
+  flex-shrink: 0;
   width: 13px;
   height: 13px;
   margin: 0;
@@ -761,6 +767,8 @@ body,
 }
 
 .quota-pin-badge {
+  white-space: nowrap;
+  flex-shrink: 0;
   font-size: 9.5px;
   font-weight: 700;
   padding: 1px 5px;

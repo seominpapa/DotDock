@@ -10,7 +10,8 @@ function loadTypeScript(relative) {
   const compiled = new Module(filename, module);
   compiled.filename = filename;
   compiled.paths = module.paths;
-  compiled.require = (request) => request === './age' ? loadTypeScript('../src/services/age.ts') : require(request);
+  compiled.require = (request) => ['./age', './quotaMetrics'].includes(request)
+    ? loadTypeScript(path.resolve(path.dirname(filename), `${request}.ts`)) : require(request);
   compiled._compile(ts.transpileModule(fs.readFileSync(filename, 'utf8'), {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 }
   }).outputText, filename);

@@ -11,6 +11,7 @@ import type {
   SystemStats
 } from '../types/dotdock';
 import { parseBirthDate } from './age';
+import { normalizeAntigravityPeriodQuotas, normalizeDockMetricIds } from './quotaMetrics';
 
 const FALLBACK_STORAGE_KEY = 'dotdock-web-fallback-state';
 
@@ -100,9 +101,17 @@ export async function loadDotDockState(): Promise<DotDockState> {
         birthDate: parseBirthDate(parsed.birthDate)?.year === parsed.birthYear ? parsed.birthDate : null,
         characterStyle: parsed.characterStyle === '3d' ? '3d' : parsed.characterStyle === 'vector' ? 'vector' : 'pixel',
         customModelId: typeof parsed.customModelId === 'string' ? parsed.customModelId : null,
-        dockMetricIds: Array.isArray(parsed.dockMetricIds)
-          ? parsed.dockMetricIds
-          : [parsed.dockMetricId || FALLBACK_STATE.dockMetricId],
+        dockMetricId: normalizeDockMetricIds([parsed.dockMetricId])[0] || FALLBACK_STATE.dockMetricId,
+        dockMetricIds: normalizeDockMetricIds(Array.isArray(parsed.dockMetricIds)
+          ? parsed.dockMetricIds : [parsed.dockMetricId || FALLBACK_STATE.dockMetricId]),
+        quota: {
+          ...FALLBACK_STATE.quota,
+          ...(parsed.quota || {}),
+          codex: { ...FALLBACK_STATE.quota.codex, ...(parsed.quota?.codex || {}) },
+          claude: { ...FALLBACK_STATE.quota.claude, ...(parsed.quota?.claude || {}) },
+          gemini: { ...FALLBACK_STATE.quota.gemini, ...(parsed.quota?.gemini || {}),
+            periodQuotas: normalizeAntigravityPeriodQuotas(parsed.quota?.gemini?.periodQuotas) }
+        },
         auth: { ...FALLBACK_STATE.auth, ...(parsed.auth || {}) }
       };
     }
@@ -133,7 +142,12 @@ export async function saveDotDockState(patch: Partial<DotDockState>): Promise<Do
   const birthYear = birth?.year ?? (patch.birthYear === undefined ? current.birthYear : patch.birthYear);
   const requestedDate = patch.birthDate === undefined ? current.birthDate : patch.birthDate;
   const birthDate = parseBirthDate(requestedDate)?.year === birthYear ? requestedDate : null;
-  const next = { ...current, ...patch, birthYear, birthDate };
+  const next = { ...current, ...patch, birthYear, birthDate,
+    dockMetricIds: normalizeDockMetricIds(patch.dockMetricIds === undefined ? current.dockMetricIds : patch.dockMetricIds),
+    quota: { ...current.quota, ...patch.quota,
+      gemini: { ...current.quota.gemini, ...patch.quota?.gemini,
+        periodQuotas: normalizeAntigravityPeriodQuotas(patch.quota?.gemini?.periodQuotas === undefined
+          ? current.quota.gemini.periodQuotas : patch.quota.gemini.periodQuotas) } } };
   try {
     localStorage.setItem(FALLBACK_STORAGE_KEY, JSON.stringify(next));
   } catch {

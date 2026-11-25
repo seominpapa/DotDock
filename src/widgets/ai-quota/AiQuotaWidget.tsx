@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { DockMetricId, ProviderId, QuotaBucket, WidgetContext } from '../../types/dotdock';
-import { getBucketUsedPercent, getSelectedDockMetricIds, toggleDockMetric } from '../../services/quotaMetrics';
+import { getAvailableDockMetrics, getBucketUsedPercent, getSelectedDockMetricIds, toggleDockMetric } from '../../services/quotaMetrics';
 
 interface GaugeRowProps {
   label: string;
@@ -207,28 +207,8 @@ export function AiQuotaWidget({
     }
   ].filter((item) => !item.bucket.hidden);
 
-  const geminiBuckets: Array<{
-    metricId: DockMetricId;
-    key: 'fiveHour' | 'weekly';
-    label: string;
-    bucket: QuotaBucket;
-    color: string;
-  }> = [
-    {
-      metricId: 'gemini:fiveHour' as const,
-      key: 'fiveHour' as const,
-      label: quota.gemini.fiveHour.label || 'Gemini 모델',
-      bucket: quota.gemini.fiveHour,
-      color: '#38bdf8'
-    },
-    {
-      metricId: 'gemini:weekly' as const,
-      key: 'weekly' as const,
-      label: quota.gemini.weekly.label || 'Claude · GPT 모델',
-      bucket: quota.gemini.weekly,
-      color: '#60a5fa'
-    }
-  ].filter((item) => !item.bucket.hidden);
+  const geminiBuckets = getAvailableDockMetrics(state, true).filter(metric => metric.provider === 'gemini')
+    .map(metric => ({ metricId: metric.id, key: metric.id, label: metric.label, bucket: metric.bucket, color: metric.color }));
 
   return (
     <div className="widget-stack">

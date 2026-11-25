@@ -88,6 +88,43 @@ test('an unowned extension port never receives a CSRF token', async () => {
   ]);
 });
 
+test('standalone macOS reads only the owned trusted server CSRF from its environment', async () => {
+  const executable = '/Applications/Antigravity.app/Contents/Resources/bin/language_server';
+  const fixture = mac({ replies: { ps: `123 501 ${executable} --standalone --https_server_port=4666`,
+    text: `p123\nu501\nn${executable}\n` } });
+  const inspect = fixture.options.execFile;
+  fixture.options.execFile = (file, args, settings, callback) => args[0] === 'eww'
+    ? callback(null, `${executable} --standalone ANTIGRAVITY_SERVER_CSRF_TOKEN=${CSRF} OTHER_SECRET=never-return-this`)
+    : inspect(file, args, settings, callback);
+  const result = await discoverAntigravityEndpoints(fixture.options);
+  assert.deepEqual(result, [{ pid: 123, port: 4666, protocol: 'https:', csrfToken: CSRF },
+    { pid: 123, port: 4555, protocol: 'https:', csrfToken: CSRF }]);
+  assert.doesNotMatch(JSON.stringify(result), /OTHER_SECRET|never-return-this/);
+});
+
+test('standalone environment is never inspected before owner and installation trust validation', async () => {
+  const executable = '/Applications/Antigravity.app/Contents/Resources/bin/language_server';
+  for (const overrides of [
+    { replies: { ps: `123 502 ${executable} --standalone` } },
+    { replies: { ps: '123 501 /private/tmp/Antigravity.app/language_server --standalone',
+      text: 'p123\nu501\nn/private/tmp/Antigravity.app/language_server\n' } },
+    { replies: { text: `p123\nu502\nn${executable}\n` } },
+    { fs: { ...fakeFs, realpath: async () => '/private/tmp/language_server' } }
+  ]) {
+    const fixture = mac({ ...overrides, replies: { ps: `123 501 ${executable} --standalone`,
+      text: `p123\nu501\nn${executable}\n`, ...overrides.replies } });
+    assert.deepEqual(await discoverAntigravityEndpoints(fixture.options), []);
+    assert.ok(fixture.calls.every(({ args }) => args[0] !== 'eww'));
+  }
+  for (const environment of ['', 'ANTIGRAVITY_SERVER_CSRF_TOKEN=bad!token', 'OTHER_SECRET=synthetic']) {
+    const fixture = mac({ replies: { ps: `123 501 ${executable} --standalone`, text: `p123\nu501\nn${executable}\n` } });
+    const inspect = fixture.options.execFile;
+    fixture.options.execFile = (file, args, settings, callback) => args[0] === 'eww'
+      ? callback(null, environment) : inspect(file, args, settings, callback);
+    assert.deepEqual(await discoverAntigravityEndpoints(fixture.options), []);
+  }
+});
+
 test('Windows verifies the current SID, executable path with spaces, and process-owned ports', async () => {
   const fixture = windows();
   assert.deepEqual(await discoverAntigravityEndpoints(fixture.options), [

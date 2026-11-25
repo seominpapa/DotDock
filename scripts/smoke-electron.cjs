@@ -6,6 +6,7 @@ const { _electron: electron, expect } = require('@playwright/test');
 const { version } = require('../package.json');
 const verify3D = require('./smoke-3d.cjs');
 const verifySchedules = require('./smoke-schedules.cjs');
+const verifyAntigravityQuota = require('./smoke-antigravity-quota.cjs');
 
 const projectDir = path.resolve(__dirname, '..');
 const profileDir = fs.mkdtempSync(path.join(os.tmpdir(), 'dotdock-smoke-'));
@@ -263,10 +264,13 @@ async function verifyFirstRun() {
   await expect(geminiCard().locator('.header-conn-pill')).toHaveText('● OAuth 연동');
   await expect(geminiCard().locator('.header-conn-pill')).toHaveAttribute('title', /로컬 서비스/);
   report.checks.push('successful Antigravity detection shows OAuth badge and the connection source tooltip');
+  await verifyAntigravityQuota({ page, application, saveFixtureState, outputDir, report });
 
   await page.getByTitle('창 닫기', { exact: true }).click();
   await expect.poll(() => application.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].getSize()[0]))
     .toBe(168);
+  assert.deepEqual(await application.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].getSize()),
+    [report.periodQuotaCollapsedSize.width, report.periodQuotaCollapsedSize.height]);
   assert.ok((await application.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].getSize()[1])) >= 182);
   await page.evaluate(async () => {
     window.dotdock.moveBy(-12, -12);
@@ -305,11 +309,12 @@ async function verifyRestart() {
   assert.equal(state.characterStyle, 'vector');
   assert.equal(state.scale, 1.5);
   assert.equal(state.memo, 'DotDock native smoke memo');
-  assert.deepEqual(state.dockMetricIds, ['codex:weekly', 'claude:fiveHour']);
+  assert.deepEqual(state.dockMetricIds, report.selectedQuotaIds);
   assert.equal(state.quota.codex.weekly.used, 77);
   assert.deepEqual(state.windowPosition, report.savedPosition);
   assert.deepEqual(rendererErrors, []);
   report.checks.push('restart restores onboarding, character, memo, selected quotas, quota data and position');
+  await verifyAntigravityQuota.verifyRestart({ page, report });
   await verifySchedules.verifyRestart({ application, page, report });
   await page.evaluate(() => window.dotdock.saveState({ characterStyle: '3d' }));
   await application.close();

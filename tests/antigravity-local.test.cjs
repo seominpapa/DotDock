@@ -81,6 +81,19 @@ test('unrecognized global cadence summary falls back without guessing a model fa
   assert.equal(result.models['gemini-synthetic'].quotaInfo.remainingFraction, 0.6);
 });
 
+test('summary keeps explicit rolling windows separately for the downstream account state', async t => {
+  const local = await localServer(t, ({ path: requestPath }, response) => json(response,
+    requestPath.endsWith('GetUserStatus') ? legacy() : { response: { groups: [
+      { displayName: 'Gemini Models', buckets: [
+        { bucketId: 'gemini-5h', window: '5h', remainingFraction: 0.8 },
+        { bucketId: 'gemini-weekly', window: 'weekly', remainingFraction: 0.3 }
+      ] }
+    ] } }));
+  const result = await queryAntigravityLocal(local.options);
+  assert.deepEqual(result.periodQuotas.map(q => [q.id, q.period, q.remainingFraction]),
+    [['gemini-5h', 'fiveHour', 0.8], ['gemini-weekly', 'weekly', 0.3]]);
+});
+
 test('missing or invalid fractions never fabricate zero usage and unverified identity stays absent', async t => {
   const local = await localServer(t, ({ path: requestPath }, response) => json(response,
     requestPath.endsWith('GetUserStatus') ? { userStatus: { name: 'not-an-email', email: 'invalid', cascadeModelConfigData: { clientModelConfigs: [

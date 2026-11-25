@@ -6,6 +6,7 @@ const os = require('node:os');
 const oauth = require('./oauth.cjs');
 const { createUpdater } = require('./updates.cjs');
 const { getCollapsedSize } = require('./dock-layout.cjs');
+const { normalizePeriodQuotas, normalizeMetricIds } = require('./antigravity-quota.cjs');
 const { loadBirthIdentity, applyBirthIdentity } = require('./birth-identity.cjs');
 const { registerCharacterModelIpc } = require('./character-models.cjs');
 const schedules = require('./schedules.cjs');
@@ -160,6 +161,10 @@ function mergeDeepQuota(base, incoming) {
   for (const provider of providers) {
     if (incoming[provider] && typeof incoming[provider] === 'object') {
       for (const [bucketKey, bucketVal] of Object.entries(incoming[provider])) {
+        if (provider === 'gemini' && bucketKey === 'periodQuotas') {
+          next.gemini.periodQuotas = normalizePeriodQuotas(bucketVal);
+          continue;
+        }
         if (next[provider][bucketKey] && bucketVal && typeof bucketVal === 'object') {
           next[provider][bucketKey] = {
             ...next[provider][bucketKey],
@@ -196,8 +201,8 @@ function loadStateFromDisk() {
         dockMetricId:
           typeof raw.dockMetricId === 'string' ? raw.dockMetricId : defaults.dockMetricId,
         dockMetricIds: Array.isArray(raw.dockMetricIds)
-          ? raw.dockMetricIds.filter((id) => typeof id === 'string' && /^(codex|claude|gemini):(fiveHour|weekly|fable)$/.test(id))
-          : [raw.dockMetricId || defaults.dockMetricId],
+          ? normalizeMetricIds(raw.dockMetricIds)
+          : normalizeMetricIds([raw.dockMetricId || defaults.dockMetricId]),
         showSystemWidget:
           typeof raw.showSystemWidget === 'boolean' ? raw.showSystemWidget : true,
         launchAtLogin:
@@ -216,7 +221,8 @@ function loadStateFromDisk() {
           ...(raw.quota || {}),
           codex: { ...defaults.quota.codex, ...((raw.quota && raw.quota.codex) || {}) },
           claude: { ...defaults.quota.claude, ...((raw.quota && raw.quota.claude) || {}) },
-          gemini: { ...defaults.quota.gemini, ...((raw.quota && raw.quota.gemini) || {}) }
+          gemini: { ...defaults.quota.gemini, ...((raw.quota && raw.quota.gemini) || {}),
+            periodQuotas: normalizePeriodQuotas(raw.quota?.gemini?.periodQuotas) }
         }
       };
     }
@@ -656,7 +662,7 @@ function getOAuthHooks() {
   return {
     getState: () => appState,
     saveState: () => saveStateToDisk(),
-    notifyStateUpdated: () => sendCommand('state-updated', appState),
+    notifyStateUpdated: () => { applyExpandedState(isExpanded); sendCommand('state-updated', appState); },
     mergeLocalQuotaFile: () => {
       const localPath = getLocalQuotaFilePath();
       try {
@@ -697,6 +703,7 @@ function registerIpc() {
     const next = {
       ...appState,
       ...patch,
+      ...(patch.dockMetricIds !== undefined ? { dockMetricIds: normalizeMetricIds(patch.dockMetricIds) } : {}),
       ...birthIdentity,
       alarmPreferences,
       ...(patch.launchAtLogin !== undefined
@@ -720,7 +727,8 @@ function registerIpc() {
             ...patch.quota,
             codex: { ...appState.quota.codex, ...(patch.quota.codex || {}) },
             claude: { ...appState.quota.claude, ...(patch.quota.claude || {}) },
-            gemini: { ...appState.quota.gemini, ...(patch.quota.gemini || {}) }
+            gemini: { ...appState.quota.gemini, ...(patch.quota.gemini || {}), periodQuotas:
+              normalizePeriodQuotas(patch.quota.gemini?.periodQuotas ?? appState.quota.gemini.periodQuotas) }
           }
         : appState.quota
     };

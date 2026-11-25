@@ -1,5 +1,6 @@
 const http = require('node:http');
 const https = require('node:https');
+const { parsePeriodQuotas } = require('./antigravity-quota.cjs');
 
 const SERVICE = '/exa.language_server_pb.LanguageServerService/';
 const MAX_BYTES = 1024 * 1024;
@@ -164,7 +165,8 @@ async function queryAntigravityLocal(options = {}) {
       const parsed = summary.status === 'ok' ? summaryModels(summary.payload) : { recognized: false };
       const models = parsed.models || current.models;
       const identity = current.accountLabel ? { accountLabel: current.accountLabel } : {};
-      if (models) return { status: 'ok', ...identity, models };
+      const periodQuotas = summary.status === 'ok' ? parsePeriodQuotas(summary.payload) : [];
+      if (models) return { status: 'ok', ...identity, models, ...(periodQuotas.length ? { periodQuotas } : {}) };
       const category = [summary.status, status.status].includes('unauthorized') ? 'unauthorized'
         : parsed.recognized || current.recognized ? 'no-quota'
           : [summary.status, status.status].some(value => ['ok', 'unrecognized'].includes(value)) ? 'unrecognized' : 'unavailable';

@@ -2,6 +2,7 @@ const { app, shell, safeStorage } = require('electron');
 const { createCredentialStore, CredentialStoreError } = require('./credential-store.cjs');
 const { queryAntigravityLocal } = require('./antigravity-local.cjs');
 const { decodeAntigravityTokens } = require('./antigravity-credentials.cjs');
+const { normalizePeriodQuotas, resolvePeriodSelections } = require('./antigravity-quota.cjs');
 const http = require('node:http');
 const https = require('node:https');
 const crypto = require('node:crypto');
@@ -1330,13 +1331,18 @@ function verifiedGeminiAccount(value) {
   return typeof value === 'string' && value.length <= 320 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value) ? value.toLowerCase() : null;
 }
 
-function applyGeminiSummary(appState, summary, nowIso, email, source, method = 'oauth-session') {
+function applyGeminiSummary(appState, summary, nowIso, email, source, method = 'oauth-session', rawPeriods = []) {
   const bucket = (group, label) => ({ ...group, limit: 100, unit: '%', label });
+  const periodQuotas = normalizePeriodQuotas(rawPeriods.map(q => ({ id: q.id, family: q.family,
+    modelLabel: q.modelLabel, period: q.period, used: Math.round((1 - q.remainingFraction) * 100), limit: 100, unit: '%',
+    resetLabel: formatResetFromTimestamp(q.resetTime) || '초기화 시간 미제공',
+    label: `${q.modelLabel} · ${q.period === 'fiveHour' ? '5시간 (5h)' : '일주일 (7d)'}` })));
   appState.quota = {
     ...appState.quota,
     gemini: {
-      fiveHour: bucket(summary.gemini, 'Gemini 모델'),
-      weekly: bucket(summary.partner, 'Claude · GPT 모델')
+      fiveHour: bucket(summary.gemini, 'Gemini 모델 · 기간 미제공'),
+      weekly: bucket(summary.partner, 'Claude · GPT 모델 · 기간 미제공'),
+      periodQuotas
     },
     lastUpdatedAt: nowIso,
     source: 'oauth-sync'
@@ -1353,6 +1359,10 @@ function applyGeminiSummary(appState, summary, nowIso, email, source, method = '
       ? 'Antigravity 로컬 서비스에서 실시간 사용량을 확인했습니다.'
       : 'Antigravity 저장된 인증으로 실시간 사용량을 확인했습니다.'
   } };
+  if (periodQuotas.length) {
+    appState.dockMetricIds = resolvePeriodSelections({ periodQuotas }, appState.dockMetricIds
+      || (appState.dockMetricId ? [appState.dockMetricId] : []));
+  }
 }
 
 function failGeminiSync(appState, message) {
@@ -1444,7 +1454,7 @@ async function syncGeminiHybrid(appState, nowIso, hooks) {
   }
   const summary = local.status === 'ok' ? summarizeAntigravityModels({ models: local.models }) : null;
   if (summary?.hasAnyQuota && (!expectedAccount || email === expectedAccount)) {
-    applyGeminiSummary(appState, summary, nowIso, email, 'local-api');
+    applyGeminiSummary(appState, summary, nowIso, email, 'local-api', 'oauth-session', local.periodQuotas || []);
     return true;
   }
   // Without a verified account, switching sources could silently mix two users' quotas.
@@ -1515,6 +1525,7 @@ function clearProviderFakeFallback(appState, provider, statusMessage) {
       statusMessage
     };
   } else if (provider === 'gemini') {
+    appState.quota = { ...appState.quota, gemini: { ...appState.quota.gemini, periodQuotas: [] } };
     appState.quota.gemini.fiveHour = {
       used: 0,
       limit: 100,

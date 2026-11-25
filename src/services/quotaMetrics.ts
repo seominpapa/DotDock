@@ -1,4 +1,32 @@
-import type { DockMetricId, DockMetricKey, DotDockState, ProviderId, QuotaBucket } from '../types/dotdock';
+import type { AntigravityPeriodQuota, DockMetricId, DockMetricKey, DotDockState, ProviderId, QuotaBucket } from '../types/dotdock';
+
+const MAX_QUOTA_ROWS = 64;
+const SAFE_BUCKET_ID = /^[a-zA-Z0-9][a-zA-Z0-9._-]{0,99}$/;
+const LEGACY_METRIC_ID = /^(?:codex:(?:fiveHour|weekly)|claude:(?:fiveHour|weekly|fable)|gemini:(?:fiveHour|weekly))$/;
+const isDisplayText = (value: unknown): value is string =>
+  typeof value === 'string' && value.length > 0 && value.length <= 200 && !/[\x00-\x1f\x7f]/.test(value);
+
+export function normalizeAntigravityPeriodQuotas(value: unknown): AntigravityPeriodQuota[] {
+  if (!Array.isArray(value)) return [];
+  const rows = value.slice(0, MAX_QUOTA_ROWS).filter((row): row is AntigravityPeriodQuota =>
+    Boolean(row) && typeof row === 'object' && !Array.isArray(row)
+    && typeof row.id === 'string' && SAFE_BUCKET_ID.test(row.id)
+    && (row.family === 'gemini' || row.family === 'partner')
+    && (row.period === 'fiveHour' || row.period === 'weekly')
+    && isDisplayText(row.modelLabel) && isDisplayText(row.label) && isDisplayText(row.resetLabel)
+    && typeof row.used === 'number' && Number.isFinite(row.used) && row.used >= 0 && row.used <= 100
+    && row.limit === 100 && row.unit === '%');
+  return rows.filter((row, index) => rows.findIndex(other => other.id === row.id) === index)
+    .map(row => ({ id: row.id, family: row.family, modelLabel: row.modelLabel, period: row.period,
+      used: row.used, limit: 100, unit: '%', resetLabel: row.resetLabel, label: row.label }));
+}
+
+export function normalizeDockMetricIds(value: unknown): DockMetricId[] {
+  if (!Array.isArray(value)) return [];
+  return [...new Set(value.slice(0, MAX_QUOTA_ROWS).filter((id): id is DockMetricId =>
+    typeof id === 'string' && (LEGACY_METRIC_ID.test(id)
+      || (id.startsWith('gemini:quota:') && SAFE_BUCKET_ID.test(id.slice('gemini:quota:'.length))))))];
+}
 
 export interface DockMetricOption {
   id: DockMetricId;
@@ -12,6 +40,29 @@ export interface DockMetricOption {
   remainingPercent: number;
   color: string;
   bucket: QuotaBucket;
+}
+
+type DockMetricCandidate = Omit<DockMetricOption, 'label' | 'usedPercent' | 'remainingPercent'> & { defaultLabel: string };
+
+function getAntigravityCandidates(state: DotDockState): DockMetricCandidate[] {
+  const periodQuotas = normalizeAntigravityPeriodQuotas(state.quota.gemini.periodQuotas);
+  if (periodQuotas.length) return periodQuotas.map(bucket => ({
+    id: `gemini:quota:${bucket.id}`,
+    provider: 'gemini', providerTitle: 'Antigravity · Gemini',
+    shortProvider: bucket.family === 'gemini' ? 'Gemini' : 'Antigravity',
+    bucketKey: 'quota', defaultLabel: bucket.label,
+    shortLabel: `${bucket.family === 'gemini' ? 'Gemini' : 'AG C/G'} ${bucket.period === 'fiveHour' ? '5h' : '7d'}`,
+    color: bucket.family === 'gemini' ? '#38bdf8' : '#60a5fa', bucket
+  }));
+  return ([['fiveHour', 'Gemini 모델', 'Gemini', '#38bdf8'],
+    ['weekly', 'Claude · GPT 모델', 'Claude·GPT', '#60a5fa']] as const).map(([key, label, shortLabel, color]) => {
+    const bucket = state.quota.gemini[key];
+    const oldLabel = bucket.label || label;
+    return { id: `gemini:${key}`, provider: 'gemini', providerTitle: 'Antigravity · Gemini',
+      shortProvider: key === 'fiveHour' ? 'Gemini' : 'Antigravity', bucketKey: key,
+      defaultLabel: label, shortLabel, color,
+      bucket: { ...bucket, label: oldLabel.includes('기간 미제공') ? oldLabel : `${oldLabel} · 기간 미제공` } };
+  });
 }
 
 export function getBucketUsedPercent(bucket: QuotaBucket): number {
@@ -40,17 +91,7 @@ export function getAvailableDockMetrics(
     ? state.enabledProviders
     : ['codex', 'claude', 'gemini']) as ProviderId[];
 
-  const allCandidates: Array<{
-    id: DockMetricId;
-    provider: ProviderId;
-    providerTitle: string;
-    shortProvider: string;
-    bucketKey: DockMetricKey;
-    defaultLabel: string;
-    shortLabel: string;
-    color: string;
-    bucket: QuotaBucket;
-  }> = [
+  const allCandidates: DockMetricCandidate[] = [
     {
       id: 'codex:fiveHour',
       provider: 'codex',
@@ -106,28 +147,7 @@ export function getAvailableDockMetrics(
       color: '#a855f7',
       bucket: quota.claude.fable
     },
-    {
-      id: 'gemini:fiveHour',
-      provider: 'gemini',
-      providerTitle: 'Antigravity · Gemini',
-      shortProvider: 'Gemini',
-      bucketKey: 'fiveHour',
-      defaultLabel: 'Gemini 모델',
-      shortLabel: 'Gemini',
-      color: '#38bdf8',
-      bucket: quota.gemini.fiveHour
-    },
-    {
-      id: 'gemini:weekly',
-      provider: 'gemini',
-      providerTitle: 'Antigravity · Gemini',
-      shortProvider: 'Antigravity',
-      bucketKey: 'weekly',
-      defaultLabel: 'Claude · GPT 모델',
-      shortLabel: 'Claude·GPT',
-      color: '#60a5fa',
-      bucket: quota.gemini.weekly
-    }
+    ...getAntigravityCandidates(state)
   ];
 
   const nonHidden = allCandidates.filter((item) => !item.bucket.hidden);
@@ -158,15 +178,22 @@ export function resolveActiveDockMetric(state: DotDockState): DockMetricOption |
   const available = getAvailableDockMetrics(state);
   if (available.length === 0) return null;
   if (state.dockMetricId) {
-    const matched = available.find((m) => m.id === state.dockMetricId);
+    const matched = available.find((m) => m.id === getSelectedDockMetricIds(state)[0]);
     if (matched) return matched;
   }
   return available[0];
 }
 
 export function getSelectedDockMetricIds(state: DotDockState): DockMetricId[] {
-  if (Array.isArray(state.dockMetricIds)) return [...new Set(state.dockMetricIds)];
-  return state.dockMetricId ? [state.dockMetricId] : getAvailableDockMetrics(state).slice(0, 1).map((metric) => metric.id);
+  const selected = normalizeDockMetricIds(Array.isArray(state.dockMetricIds) ? state.dockMetricIds
+    : state.dockMetricId ? [state.dockMetricId] : getAvailableDockMetrics(state).slice(0, 1).map(metric => metric.id));
+  const periodQuotas = normalizeAntigravityPeriodQuotas(state.quota.gemini.periodQuotas);
+  return [...new Set(selected.map(id => {
+    const family = id === 'gemini:fiveHour' ? 'gemini' : id === 'gemini:weekly' ? 'partner' : null;
+    const matching = family ? periodQuotas.filter(row => row.family === family).sort((a, b) =>
+      b.used - a.used || Number(a.period === 'weekly') - Number(b.period === 'weekly') || a.id.localeCompare(b.id)) : [];
+    return matching.length ? `gemini:quota:${matching[0].id}` as DockMetricId : id;
+  }))];
 }
 
 export function getSelectedDockMetrics(state: DotDockState): DockMetricOption[] {
@@ -177,5 +204,5 @@ export function getSelectedDockMetrics(state: DotDockState): DockMetricOption[] 
 
 export function toggleDockMetric(state: DotDockState, id: DockMetricId): DockMetricId[] {
   const selected = getSelectedDockMetricIds(state);
-  return selected.includes(id) ? selected.filter((metricId) => metricId !== id) : [...selected, id];
+  return normalizeDockMetricIds(selected.includes(id) ? selected.filter((metricId) => metricId !== id) : [...selected, id]);
 }

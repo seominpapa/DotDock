@@ -18,7 +18,7 @@ export type ProviderId = 'codex' | 'claude' | 'gemini';
 
 export type AutoSyncMinutes = 5 | 10 | 15 | 20;
 
-export type DockMetricKey = 'fiveHour' | 'weekly' | 'fable';
+export type DockMetricKey = 'fiveHour' | 'weekly' | 'fable' | 'quota';
 
 export type DockMetricId =
   | 'codex:fiveHour'
@@ -27,7 +27,8 @@ export type DockMetricId =
   | 'claude:weekly'
   | 'claude:fable'
   | 'gemini:fiveHour'
-  | 'gemini:weekly';
+  | 'gemini:weekly'
+  | `gemini:quota:${string}`;
 
 export interface ProviderAuthInfo {
   connected: boolean;
@@ -51,6 +52,16 @@ export interface QuotaBucket {
   hidden?: boolean;
 }
 
+export interface AntigravityPeriodQuota extends QuotaBucket {
+  id: string;
+  family: 'gemini' | 'partner';
+  modelLabel: string;
+  period: 'fiveHour' | 'weekly';
+  limit: 100;
+  unit: '%';
+  label: string;
+}
+
 export interface AiQuotaState {
   lastUpdatedAt: string;
   source: 'manual' | 'local-file' | 'oauth-sync';
@@ -66,6 +77,7 @@ export interface AiQuotaState {
   gemini: {
     fiveHour: QuotaBucket;
     weekly: QuotaBucket;
+    periodQuotas?: AntigravityPeriodQuota[];
   };
 }
 
