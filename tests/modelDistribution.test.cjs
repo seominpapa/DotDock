@@ -11,12 +11,14 @@ const script = path.resolve(__dirname, '../scripts/package-3d-models.py');
 const python = process.platform === 'win32' ? 'python' : 'python3';
 const names = ['rat', 'ox', 'tiger', 'rabbit', 'dragon', 'snake', 'horse', 'sheep', 'monkey', 'rooster', 'dog', 'pig'];
 const hash = (bytes) => crypto.createHash('sha256').update(bytes).digest('hex');
+const license = 'MIT License\r\n\r\nCopyright (c) 2026 DotDock fixture\r\n';
 
 function fixture(run) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'dotdock-model-distribution-'));
   try {
     fs.mkdirSync(path.join(root, 'public/models'), { recursive: true });
     fs.writeFileSync(path.join(root, 'package.json'), JSON.stringify({ version: '0.1.5' }));
+    fs.writeFileSync(path.join(root, 'LICENSE'), license);
     for (const name of names) fs.writeFileSync(path.join(root, 'public/models', `${name}.glb`), createTriangleGlb());
     run(root);
   } finally { fs.rmSync(root, { recursive: true, force: true }); }
@@ -44,15 +46,27 @@ test('packages exactly 12 GLBs with pinned URLs and independently verified ZIP d
     ' expected={line.split("  ",1)[1]:line.split("  ",1)[0] for line in entries["SHA256SUMS.txt"].decode().splitlines()}',
     ' assert set(expected)==set(entries)-{"SHA256SUMS.txt"}',
     ' assert all(hashlib.sha256(entries[name]).hexdigest()==digest for name,digest in expected.items())',
-    ' print(json.dumps({"names":list(entries),"manifest":json.loads(entries["manifest.json"]),"readme":entries["README.md"].decode()}))'
+    ' print(json.dumps({"names":list(entries),"manifest":json.loads(entries["manifest.json"]),"readme":entries["README.md"].decode(),"license":entries["LICENSE"].decode()}))'
   ].join('\n'), archive], { encoding: 'utf8' }));
-  assert.deepEqual(inspection.names, [...names.map((name) => `models/${name}.glb`), 'manifest.json', 'README.md', 'SHA256SUMS.txt']);
+  assert.deepEqual(inspection.names, [...names.map((name) => `models/${name}.glb`), 'manifest.json', 'README.md', 'LICENSE', 'SHA256SUMS.txt']);
   assert.deepEqual(inspection.manifest, manifest);
   assert.match(inspection.readme, /GLB/);
+  assert.match(inspection.readme, /MIT/);
+  assert.match(inspection.readme, /copyright and permission notice/);
+  assert.equal(inspection.license, license, 'archive preserves the repository license verbatim');
   const first = hash(fs.readFileSync(archive));
   execFileSync(python, [script, '--root', root]);
   assert.equal(hash(fs.readFileSync(archive)), first, 'repeated builds produce identical archive bytes');
   execFileSync(python, [script, '--root', root, '--check']);
+}));
+
+test('archive requires LICENSE while manifest-only and check remain independent of it', () => fixture((root) => {
+  fs.unlinkSync(path.join(root, 'LICENSE'));
+  const run = (...args) => execFileSync(python, [script, '--root', root, ...args], { stdio: 'pipe' });
+  run('--manifest-only');
+  run('--check');
+  assert.throws(() => run(), /LICENSE/);
+  assert.equal(fs.existsSync(path.join(root, 'release/DotDock-3D-Models-0.1.5.zip')), false);
 }));
 
 test('manifest checks reject stale versions, content changes, and missing or unexpected models', () => fixture((root) => {

@@ -76,10 +76,15 @@ settings, select GLB 가져오기, and choose a file from the models directory.
 Drag the character to rotate it; drag its name to move the application window.
 These static models do not include character animation or rigging.
 
+## License
+
+Distributed under the MIT License; see LICENSE for the full terms.
+Keep the copyright and permission notice when redistributing these models.
+
 ## Verify
 
 manifest.json pins the release tag, filenames, sizes, and SHA-256 digests.
-SHA256SUMS.txt covers the 12 GLBs, manifest.json, and this README.
+SHA256SUMS.txt covers the 12 GLBs, manifest.json, this README, and LICENSE.
 After extracting, run `shasum -a 256 -c SHA256SUMS.txt` on macOS or
 `sha256sum -c SHA256SUMS.txt` on Linux. Windows users can compare
 `Get-FileHash models/rat.glb -Algorithm SHA256` against the manifest.
@@ -123,6 +128,7 @@ def main():
     entries = {f'models/{name}.glb': files[name] for name in ZODIACS}
     entries['manifest.json'] = manifest
     entries['README.md'] = readme_bytes(version)
+    entries['LICENSE'] = (args.root / 'LICENSE').read_bytes()
     entries['SHA256SUMS.txt'] = ''.join(f'{digest(data)}  {name}\n' for name, data in entries.items()).encode('utf-8')
     destination = (args.output_directory or args.root / 'release') / archive_name
     write_archive(destination, entries)
